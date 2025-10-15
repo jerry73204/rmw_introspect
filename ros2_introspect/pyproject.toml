@@ -1,0 +1,47 @@
+[project]
+name = "ros2-introspect"
+version = "0.1.0"
+description = "ROS 2 node introspection tool using rmw_introspect_cpp"
+authors = [
+    { name = "aeon", email = "jerry73204@gmail.com" }
+]
+dependencies = [
+    "pyyaml>=6.0",
+]
+readme = "README.md"
+requires-python = "==3.10.*"
+
+[project.scripts]
+ros2-introspect = "ros2_introspect.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.1.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ros2_introspect"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "-p", "no:rostest",
+    "-p", "no:launch_testing",
+    "-p", "no:ament_copyright",
+    "-p", "no:ament_xmllint",
+    "-p", "no:ament_lint",
+    "-p", "no:ament_flake8",
+    "-p", "no:ament_pep257",
+    "-p", "no:launch_testing_ros",
+]
+# Don't load pytest plugins from ROS 2 packages
+norecursedirs = [".git", ".venv", "build", "dist"]
