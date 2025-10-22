@@ -1,0 +1,769 @@
+#+TITLE: RMW Introspect Architecture Design
+#+AUTHOR: ROS-Plan Contributors
+#+DATE: 2025-10-22
+#+OPTIONS: toc:2 num:t
+
+* Overview
+
+This document describes the architecture design for transforming rmw_introspect
+from a recording-only RMW implementation into an intermediate layer that
+intercepts and forwards RMW calls to real middleware implementations.
+
+* Current Architecture (Recording-Only)
+
+** Design Philosophy
+
+The current rmw_introspect_cpp implements a "stub" RMW layer that:
+- Records all interface metadata during node initialization
+- Returns success for all operations
+- Performs NO actual middleware communication
+- Exports collected data to JSON/YAML files
+
+** Component Structure
+
+*** Core Components
+
+1. *RMW Implementation Layer* (src/rmw_*.cpp)
+   - Implements ~50 RMW API functions
+   - All tagged with ~rmw_introspect_cpp_identifier~
+   - Operations are no-ops or return default values
+
+2. *Data Recording Layer* (IntrospectionData singleton)
+   - Thread-safe storage for metadata
+   - Records: nodes, publishers, subscriptions, services, clients
+   - Export functions for JSON/YAML output
+
+3. *Type Support Utilities*
+   - Extracts message/service type names from rosidl type support
+   - Handles both C and C++ introspection interfaces
+
+** Data Flow
+
+#+BEGIN_SRC
+ROS Node
+  |
+  | RCL calls
+  v
+RMW Interface (rmw_introspect_cpp)
+  |
+  | Record metadata
+  v
+IntrospectionData Singleton
+  |
+  | On shutdown
+  v
+JSON/YAML Export
+#+END_SRC
+
+** Strengths
+
+- Simple, focused implementation
+- No external dependencies beyond ROS 2 core
+- Fast: no middleware initialization overhead
+- Isolated: no network communication
+- Well-tested
+
+** Limitations
+
+- No actual message passing
+- No service/client communication
+- Cannot be used with real ROS 2 systems
+- Graph queries return empty results
+
+* Proposed Architecture (Intermediate Layer)
+
+** Design Philosophy
+
+Transform rmw_introspect into a *transparent proxy* that:
+1. Intercepts RMW calls from ROS nodes
+2. Records interface metadata (as before)
+3. Forwards calls to a real RMW implementation via dlopen
+4. Returns results from real RMW to the node
+
+** High-Level Design
+
+#+BEGIN_SRC
+ROS Node
+  |
+  | RCL calls
+  v
+RMW Introspect (Proxy Layer)
+  |
+  +----> Record metadata ---> IntrospectionData
+  |
+  +----> Forward call ------> Real RMW (via dlopen)
+         (e.g., rmw_fastrtps_cpp)
+           |
+           v
+         DDS Middleware
+           |
+           v
+         Network Communication
+#+END_SRC
+
+** Key Design Goals
+
+1. *Transparency*: Nodes work identically with/without introspection
+2. *Composability*: Works with ANY real RMW implementation
+3. *Performance*: Minimal overhead (one extra function call per operation)
+4. *Robustness*: Proper error propagation from real RMW
+5. *Maintainability*: Clean separation of concerns
+
+* Core Design Patterns
+
+** Pattern 1: Handle Wrapping
+
+*** Problem
+
+RMW structures are tagged with ~implementation_identifier~. Real RMW returns
+handles with its identifier (e.g., "rmw_fastrtps_cpp"), but we need to present
+handles with our identifier ("rmw_introspect_cpp") to ROS nodes.
+
+*** Solution: Wrapper Pattern
+
+Create wrapper structures that contain:
+- The real RMW handle
+- Metadata for introspection
+- Our implementation identifier
+
+#+BEGIN_SRC cpp
+// Example: Publisher wrapper
+struct PublisherWrapper {
+  rmw_publisher_t* real_publisher;  // Handle from real RMW
+  std::string topic_name;            // For introspection
+  std::string message_type;          // For introspection
+  rmw_qos_profile_t qos;             // For introspection
+};
+
+// Public handle returned to ROS node
+rmw_publisher_t* rmw_create_publisher(...) {
+  // 1. Create wrapper
+  auto* wrapper = new PublisherWrapper;
+
+  // 2. Call real RMW
+  wrapper->real_publisher = real_rmw->create_publisher(...);
+
+  // 3. Record metadata
+  wrapper->topic_name = topic_name;
+  wrapper->message_type = extract_message_type(type_support);
+
+  // 4. Return public handle with OUR identifier
+  rmw_publisher_t* pub = new rmw_publisher_t;
+  pub->implementation_identifier = rmw_introspect_cpp_identifier;
+  pub->data = wrapper;
+  pub->topic_name = topic_name;
+
+  return pub;
+}
+#+END_SRC
+
+*** Wrapper Types Needed
+
+- ~NodeWrapper~
+- ~PublisherWrapper~
+- ~SubscriptionWrapper~
+- ~ServiceWrapper~
+- ~ClientWrapper~
+- ~WaitSetWrapper~
+- ~GuardConditionWrapper~
+
+** Pattern 2: Dynamic Library Loading
+
+*** Problem
+
+Need to load and interface with arbitrary RMW implementations at runtime.
+
+*** Solution: dlopen + Function Pointers
+
+#+BEGIN_SRC cpp
+struct RealRMW {
+  // Library handle
+  void* lib_handle;
+
+  // Function pointers for all RMW functions
+  const char* (*get_implementation_identifier)(void);
+  const char* (*get_serialization_format)(void);
+
+  rmw_ret_t (*init_options_init)(rmw_init_options_t*, rcutils_allocator_t);
+  rmw_ret_t (*init_options_copy)(const rmw_init_options_t*, rmw_init_options_t*);
+  rmw_ret_t (*init_options_fini)(rmw_init_options_t*);
+
+  rmw_ret_t (*init)(const rmw_init_options_t*, rmw_context_t*);
+  rmw_ret_t (*shutdown)(rmw_context_t*);
+  rmw_ret_t (*context_fini)(rmw_context_t*);
+
+  rmw_node_t* (*create_node)(
+    rmw_context_t*, const char*, const char*,
+    const rmw_node_options_t*);
+  rmw_ret_t (*destroy_node)(rmw_node_t*);
+
+  rmw_publisher_t* (*create_publisher)(
+    const rmw_node_t*, const rosidl_message_type_support_t*,
+    const char*, const rmw_qos_profile_t*,
+    const rmw_publisher_options_t*);
+  rmw_ret_t (*destroy_publisher)(rmw_node_t*, rmw_publisher_t*);
+  rmw_ret_t (*publish)(const rmw_publisher_t*, const void*,
+                       rmw_publisher_allocation_t*);
+
+  // ... ~50 more function pointers
+};
+#+END_SRC
+
+*** Loading Mechanism
+
+#+BEGIN_SRC cpp
+RealRMW* load_real_rmw(const char* implementation_name) {
+  auto* real_rmw = new RealRMW;
+
+  // Construct library path
+  std::string lib_name = "librmw_" +
+                         std::string(implementation_name) + ".so";
+
+  // Load library
+  real_rmw->lib_handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_LOCAL);
+  if (!real_rmw->lib_handle) {
+    // Error handling
+    return nullptr;
+  }
+
+  // Load all function pointers
+  real_rmw->get_implementation_identifier =
+    (const char* (*)(void))dlsym(lib_handle,
+                                  "rmw_get_implementation_identifier");
+
+  // ... load ~50 more functions
+
+  return real_rmw;
+}
+#+END_SRC
+
+** Pattern 3: Identifier Management
+
+*** Challenge
+
+- ROS nodes call us with ~rmw_introspect_cpp_identifier~
+- We must call real RMW with structures it created
+- Real RMW checks identifiers on all incoming structures
+
+*** Solution Strategy
+
+*For incoming calls from ROS:*
+- Check identifier matches ~rmw_introspect_cpp_identifier~
+- Extract real handle from wrapper
+- Forward to real RMW
+
+*For outgoing calls to real RMW:*
+- Pass unwrapped handles (with real RMW identifier)
+- Real RMW validates its own identifiers
+- Wrap returned handles before returning to ROS
+
+#+BEGIN_SRC cpp
+// Unwrap helper
+rmw_publisher_t* unwrap_publisher(const rmw_publisher_t* pub) {
+  assert(pub->implementation_identifier == rmw_introspect_cpp_identifier);
+  auto* wrapper = static_cast<PublisherWrapper*>(pub->data);
+  return wrapper->real_publisher;
+}
+
+// Usage in forwarding
+rmw_ret_t rmw_publish(
+  const rmw_publisher_t* publisher,
+  const void* ros_message,
+  rmw_publisher_allocation_t* allocation)
+{
+  // Validate our identifier
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    publisher,
+    publisher->implementation_identifier,
+    rmw_introspect_cpp_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+
+  // Unwrap and forward to real RMW
+  rmw_publisher_t* real_pub = unwrap_publisher(publisher);
+  return real_rmw->publish(real_pub, ros_message, allocation);
+}
+#+END_SRC
+
+** Pattern 4: Context Propagation
+
+*** Challenge
+
+The ~rmw_context_t~ structure is central to RMW initialization and must be
+properly managed between our layer and real RMW.
+
+*** Solution: Context Wrapper
+
+#+BEGIN_SRC cpp
+struct ContextWrapper {
+  rmw_context_t* real_context;
+  RealRMW* real_rmw_functions;
+
+  // Introspection metadata
+  size_t domain_id;
+  std::string real_rmw_name;
+};
+
+rmw_ret_t rmw_init(
+  const rmw_init_options_t* options,
+  rmw_context_t* context)
+{
+  // Load real RMW on first initialization
+  const char* delegate_to = std::getenv("RMW_INTROSPECT_DELEGATE_TO");
+  if (!delegate_to) {
+    RMW_SET_ERROR_MSG("RMW_INTROSPECT_DELEGATE_TO not set");
+    return RMW_RET_ERROR;
+  }
+
+  RealRMW* real_rmw = load_real_rmw(delegate_to);
+  if (!real_rmw) {
+    return RMW_RET_ERROR;
+  }
+
+  // Create wrapper
+  auto* wrapper = new ContextWrapper;
+  wrapper->real_rmw_functions = real_rmw;
+  wrapper->real_context = new rmw_context_t;
+  *wrapper->real_context = rmw_get_zero_initialized_context();
+
+  // Initialize real RMW's context
+  rmw_init_options_t real_options = *options;
+  real_options.implementation_identifier =
+    real_rmw->get_implementation_identifier();
+
+  rmw_ret_t ret = real_rmw->init(&real_options, wrapper->real_context);
+  if (ret != RMW_RET_OK) {
+    delete wrapper;
+    return ret;
+  }
+
+  // Set up our context
+  context->implementation_identifier = rmw_introspect_cpp_identifier;
+  context->impl = wrapper;
+  context->instance_id = options->instance_id;
+  context->actual_domain_id = wrapper->real_context->actual_domain_id;
+
+  return RMW_RET_OK;
+}
+#+END_SRC
+
+* Environment Variables
+
+** Existing Variables
+
+- ~RMW_IMPLEMENTATION=rmw_introspect_cpp~ - Activates introspection RMW
+- ~RMW_INTROSPECT_OUTPUT~ - Output file path
+- ~RMW_INTROSPECT_FORMAT~ - Output format (json/yaml)
+- ~RMW_INTROSPECT_AUTO_EXPORT~ - Auto-export on shutdown
+- ~RMW_INTROSPECT_VERBOSE~ - Debug logging
+
+** New Variables (Intermediate Layer)
+
+- ~RMW_INTROSPECT_DELEGATE_TO~ - Real RMW implementation name
+  - Example: ~rmw_fastrtps_cpp~, ~rmw_cyclonedds_cpp~
+  - Required for intermediate layer mode
+  - If not set, falls back to recording-only mode
+
+** Usage Example
+
+#+BEGIN_SRC bash
+# Intermediate layer mode
+export RMW_IMPLEMENTATION=rmw_introspect_cpp
+export RMW_INTROSPECT_DELEGATE_TO=rmw_fastrtps_cpp
+export RMW_INTROSPECT_OUTPUT=/tmp/node_interfaces.json
+
+ros2 run my_package my_node
+
+# Node runs with FastRTPS middleware
+# Introspection data saved to /tmp/node_interfaces.json
+#+END_SRC
+
+* Error Handling Strategy
+
+** Principle: Fail Fast, Propagate Clearly
+
+1. *Initialization Errors*
+   - If real RMW fails to load: return error immediately
+   - If dlsym fails: log missing function, return error
+   - Set descriptive error messages via ~RMW_SET_ERROR_MSG~
+
+2. *Runtime Errors*
+   - Forward error codes from real RMW unchanged
+   - Real RMW's error messages are preserved
+   - Add introspection context if needed
+
+3. *Cleanup on Failure*
+   - Free allocated wrappers
+   - Don't leak real RMW resources
+   - Unload library if initialization fails
+
+#+BEGIN_SRC cpp
+rmw_publisher_t* rmw_create_publisher(...) {
+  // Record metadata first (can fail independently)
+  PublisherInfo info = {...};
+  IntrospectionData::instance().record_publisher(info);
+
+  // Allocate wrapper
+  auto* wrapper = new (std::nothrow) PublisherWrapper;
+  if (!wrapper) {
+    RMW_SET_ERROR_MSG("failed to allocate publisher wrapper");
+    return nullptr;
+  }
+
+  // Forward to real RMW
+  wrapper->real_publisher = real_rmw->create_publisher(...);
+  if (!wrapper->real_publisher) {
+    // Real RMW already set error message
+    delete wrapper;
+    return nullptr;
+  }
+
+  // Create public handle
+  rmw_publisher_t* pub = new (std::nothrow) rmw_publisher_t;
+  if (!pub) {
+    real_rmw->destroy_publisher(node, wrapper->real_publisher);
+    delete wrapper;
+    RMW_SET_ERROR_MSG("failed to allocate publisher handle");
+    return nullptr;
+  }
+
+  pub->implementation_identifier = rmw_introspect_cpp_identifier;
+  pub->data = wrapper;
+  pub->topic_name = wrapper->real_publisher->topic_name;
+  pub->can_loan_messages = wrapper->real_publisher->can_loan_messages;
+
+  return pub;
+}
+#+END_SRC
+
+* Thread Safety
+
+** Current Implementation
+
+- IntrospectionData uses ~std::mutex~ for thread-safe recording
+- All RMW functions can be called from any thread per RMW spec
+
+** Additional Considerations
+
+1. *Real RMW Thread Safety*
+   - Real RMW is responsible for its own thread safety
+   - We just forward calls - no additional synchronization needed
+
+2. *Wrapper Lifetime*
+   - Wrappers are created/destroyed by single thread (caller)
+   - No shared wrapper access across threads
+
+3. *Global State*
+   - ~RealRMW~ function pointers: loaded once during ~rmw_init~, read-only after
+   - ~IntrospectionData~: already thread-safe with mutex
+
+** Conclusion
+
+No additional synchronization needed beyond existing ~IntrospectionData~ mutex.
+
+* Performance Considerations
+
+** Overhead Analysis
+
+*** Per-Operation Overhead
+- One function pointer dereference (~1-2 CPU cycles)
+- Wrapper pointer dereference (~1-2 CPU cycles)
+- Metadata recording (amortized via batch operations)
+
+*** Initialization Overhead
+- dlopen + dlsym: ~1-5ms one-time cost
+- Minimal compared to DDS initialization (50-500ms)
+
+*** Memory Overhead
+- Per handle: ~64 bytes (wrapper structure)
+- RealRMW struct: ~2-4 KB (function pointers)
+- Negligible for typical ROS 2 applications
+
+** Optimization Opportunities
+
+1. *Lazy Recording*
+   - Batch metadata updates
+   - Write to file only on shutdown
+
+2. *Inline Wrappers*
+   - Store wrapper data directly in handle's ~data~ field
+   - Avoid extra indirection
+
+3. *Function Pointer Caching*
+   - Store commonly-used function pointers in thread-local storage
+   - Reduces repeated lookups
+
+* Compatibility Matrix
+
+** Supported RMW Implementations
+
+| RMW Implementation     | Status          | Notes                        |
+|------------------------+-----------------+------------------------------|
+| rmw_fastrtps_cpp       | Should work     | Most common, well-tested     |
+| rmw_cyclonedds_cpp     | Should work     | Standard RMW interface       |
+| rmw_connextdds         | Should work     | Commercial DDS               |
+| rmw_gurumdds_cpp       | Should work     | Korean DDS implementation    |
+| rmw_iceoryx_cpp        | May need work   | Shared memory, different API |
+| rmw_zenoh_cpp          | May need work   | Different transport layer    |
+
+** ROS 2 Versions
+
+| ROS 2 Version | Status      | Notes                              |
+|---------------+-------------+------------------------------------|
+| Humble        | Supported   | Current development target         |
+| Iron          | Should work | Similar RMW API                    |
+| Jazzy         | Should work | Future testing needed              |
+| Rolling       | Should work | API may change, needs monitoring   |
+
+* Security Considerations
+
+** Library Loading Security
+
+1. *Path Validation*
+   - Only load from standard ROS 2 library paths
+   - Validate library name format
+   - No user-supplied paths
+
+2. *Symbol Validation*
+   - Verify all required symbols exist
+   - Check function signatures (where possible)
+   - Fail safely if symbols missing
+
+3. *Privilege Separation*
+   - No privilege escalation
+   - Same permissions as real RMW
+
+** Environment Variable Injection
+
+- Validate ~RMW_INTROSPECT_DELEGATE_TO~ format
+- Whitelist known RMW implementations
+- Reject suspicious values
+
+#+BEGIN_SRC cpp
+bool is_valid_rmw_name(const char* name) {
+  // Must match: rmw_[a-z0-9_]+
+  if (strncmp(name, "rmw_", 4) != 0) return false;
+
+  for (const char* p = name + 4; *p; ++p) {
+    if (!isalnum(*p) && *p != '_') return false;
+  }
+
+  return true;
+}
+#+END_SRC
+
+* Testing Strategy
+
+** Unit Tests
+
+1. *Handle Wrapping*
+   - Create/destroy wrappers
+   - Unwrap and verify real handles
+   - Identifier validation
+
+2. *dlopen Mechanism*
+   - Load known RMW implementations
+   - Handle missing libraries gracefully
+   - Symbol resolution
+
+3. *Metadata Recording*
+   - Verify introspection data still collected
+   - Compare with recording-only mode
+
+** Integration Tests
+
+1. *Talker/Listener*
+   - Verify messages actually pass through
+   - Check introspection data correctness
+
+2. *Service/Client*
+   - Request/response communication works
+   - Service introspection recorded
+
+3. *Multiple Nodes*
+   - Multiple nodes in same process
+   - Graph queries return correct results
+
+** Compatibility Tests
+
+1. *RMW Implementations*
+   - Test with FastRTPS, CycloneDDS, Connext
+   - Verify identical behavior with/without introspection
+
+2. *ROS 2 Distributions*
+   - Test on Humble, Iron, Jazzy
+   - Verify API compatibility
+
+** Performance Tests
+
+1. *Latency Overhead*
+   - Measure publish-to-subscribe latency
+   - Compare with native RMW
+   - Target: <5% overhead
+
+2. *Throughput*
+   - High-frequency publishing
+   - Verify no message loss
+
+3. *Initialization Time*
+   - Measure dlopen overhead
+   - Should be <1% of total init time
+
+* Migration Path
+
+** Phase 0: Current State (Completed)
+
+Recording-only RMW implementation, well-tested and documented.
+
+** Phase 1: Core Infrastructure
+
+- Implement dlopen loading mechanism
+- Create wrapper structures
+- Forward initialization functions only
+- Test with simple node creation/destruction
+
+** Phase 2: Publishers & Subscriptions
+
+- Forward publisher/subscription creation
+- Forward publish/take operations
+- Test with talker/listener
+
+** Phase 3: Services & Clients
+
+- Forward service/client creation
+- Forward request/response operations
+- Test with service/client pairs
+
+** Phase 4: Advanced Features
+
+- Graph queries
+- Wait sets
+- QoS queries
+- Performance optimization
+
+** Phase 5: Production Readiness
+
+- Comprehensive compatibility testing
+- Performance benchmarking
+- Documentation updates
+- Release preparation
+
+* Open Questions
+
+** Q1: Backward Compatibility Mode
+
+Should we support running in recording-only mode if ~RMW_INTROSPECT_DELEGATE_TO~
+is not set?
+
+*Recommendation*: Yes. Check for variable at init time and branch.
+
+** Q2: Multiple RMW Instances
+
+Can we support introspecting multiple RMW implementations in a single process?
+
+*Recommendation*: Not initially. Add if needed later.
+
+** Q3: Runtime RMW Switching
+
+Should we allow changing the delegated RMW implementation at runtime?
+
+*Recommendation*: No. Too complex, limited use case.
+
+** Q4: Partial Forwarding
+
+Should we support forwarding only certain operations (e.g., publishers but not
+subscriptions)?
+
+*Recommendation*: No. All-or-nothing forwarding is simpler and safer.
+
+* References
+
+- [[file:api-design.org][API Design Document]]
+- [[file:implementation-guide.org][Implementation Guide]]
+- [[file:roadmap.org][Development Roadmap]]
+- ROS 2 RMW API: https://docs.ros.org/en/rolling/Concepts/About-Internal-Interfaces.html
+- ROS 2 RMW Implementations: https://docs.ros.org/en/rolling/How-To-Guides/Working-with-multiple-RMW-implementations.html
+
+* Appendix: Function Inventory
+
+** Complete RMW API Surface (~50 functions)
+
+*** Initialization (5 functions)
+- ~rmw_get_implementation_identifier~
+- ~rmw_get_serialization_format~
+- ~rmw_init_options_init/copy/fini~
+- ~rmw_init/shutdown/context_fini~
+
+*** Node Management (2 functions)
+- ~rmw_create_node~
+- ~rmw_destroy_node~
+
+*** Publisher (8 functions)
+- ~rmw_create_publisher~
+- ~rmw_destroy_publisher~
+- ~rmw_publish~
+- ~rmw_publish_serialized_message~
+- ~rmw_borrow_loaned_message~
+- ~rmw_return_loaned_message_from_publisher~
+- ~rmw_publisher_get_actual_qos~
+- ~rmw_publisher_count_matched_subscriptions~
+
+*** Subscription (10 functions)
+- ~rmw_create_subscription~
+- ~rmw_destroy_subscription~
+- ~rmw_take~
+- ~rmw_take_with_info~
+- ~rmw_take_serialized_message~
+- ~rmw_take_serialized_message_with_info~
+- ~rmw_borrow_loaned_message~ (subscription)
+- ~rmw_return_loaned_message_from_subscription~
+- ~rmw_subscription_get_actual_qos~
+- ~rmw_subscription_count_matched_publishers~
+
+*** Service (6 functions)
+- ~rmw_create_service~
+- ~rmw_destroy_service~
+- ~rmw_take_request~
+- ~rmw_send_response~
+- ~rmw_service_request_subscription_get_actual_qos~
+- ~rmw_service_response_publisher_get_actual_qos~
+
+*** Client (7 functions)
+- ~rmw_create_client~
+- ~rmw_destroy_client~
+- ~rmw_send_request~
+- ~rmw_take_response~
+- ~rmw_client_request_publisher_get_actual_qos~
+- ~rmw_client_response_subscription_get_actual_qos~
+
+*** Guard Condition (3 functions)
+- ~rmw_create_guard_condition~
+- ~rmw_destroy_guard_condition~
+- ~rmw_trigger_guard_condition~
+
+*** Wait Set (4 functions)
+- ~rmw_create_wait_set~
+- ~rmw_destroy_wait_set~
+- ~rmw_wait~
+
+*** Graph Queries (15+ functions)
+- ~rmw_get_node_names~
+- ~rmw_get_node_names_with_enclaves~
+- ~rmw_get_topic_names_and_types~
+- ~rmw_get_service_names_and_types~
+- ~rmw_get_publisher_names_and_types_by_node~
+- ~rmw_get_subscriber_names_and_types_by_node~
+- ~rmw_get_service_names_and_types_by_node~
+- ~rmw_get_client_names_and_types_by_node~
+- ~rmw_count_publishers~
+- ~rmw_count_subscribers~
+- ~rmw_count_clients~
+- ~rmw_count_services~
+- And more...
+
+*** Serialization (5+ functions)
+- ~rmw_serialize~
+- ~rmw_deserialize~
+- ~rmw_get_serialized_message_size~
+- And more...
+
+Total: Approximately 65 functions to wrap and forward.

@@ -1,0 +1,1211 @@
+#+TITLE: RMW Introspect Implementation Guide
+#+AUTHOR: ROS-Plan Contributors
+#+DATE: 2025-10-22
+#+OPTIONS: toc:2 num:t
+
+* Overview
+
+This document provides detailed implementation guidance for transforming
+rmw_introspect into an intermediate layer with dlopen-based forwarding.
+
+* Project Structure
+
+** Current Structure
+
+#+BEGIN_SRC
+rmw_introspect_cpp/
+├── CMakeLists.txt
+├── package.xml
+├── include/
+│   └── rmw_introspect/
+│       ├── data.hpp              # IntrospectionData singleton
+│       ├── identifier.hpp        # Implementation identifier
+│       ├── type_support.hpp      # Type extraction utilities
+│       ├── types.hpp             # Data structures
+│       └── visibility_control.h  # Export macros
+├── src/
+│   ├── rmw_init.cpp              # Init/shutdown
+│   ├── rmw_node.cpp              # Node management
+│   ├── rmw_publisher.cpp         # Publisher operations
+│   ├── rmw_subscription.cpp      # Subscription operations
+│   ├── rmw_service.cpp           # Service operations
+│   ├── rmw_client.cpp            # Client operations
+│   ├── rmw_guard_condition.cpp   # Guard conditions
+│   ├── rmw_wait.cpp              # Wait sets
+│   ├── rmw_graph.cpp             # Graph queries
+│   ├── rmw_event.cpp             # Event handling
+│   ├── type_support.cpp          # Type extraction impl
+│   └── data.cpp                  # Data recording impl
+└── test/
+    ├── test_init.cpp
+    ├── test_phase1.cpp
+    ├── ...
+#+END_SRC
+
+** Proposed Structure (New Files)
+
+#+BEGIN_SRC
+rmw_introspect_cpp/
+├── include/
+│   └── rmw_introspect/
+│       ├── real_rmw.hpp          # NEW: RealRMW struct
+│       ├── wrappers.hpp          # NEW: Wrapper structures
+│       ├── forwarding.hpp        # NEW: Forwarding utilities
+│       └── mode.hpp              # NEW: Mode detection
+├── src/
+│   ├── real_rmw.cpp              # NEW: dlopen implementation
+│   ├── wrappers.cpp              # NEW: Wrapper utilities
+│   └── forwarding.cpp            # NEW: Helper functions
+└── test/
+    ├── test_dlopen.cpp           # NEW: dlopen tests
+    ├── test_forwarding.cpp       # NEW: Forwarding tests
+    └── test_integration.cpp      # NEW: E2E with real RMW
+#+END_SRC
+
+* Implementation Phases
+
+** Phase 1: Core Infrastructure
+
+*** 1.1: Create real_rmw.hpp
+
+#+BEGIN_SRC cpp
+// include/rmw_introspect/real_rmw.hpp
+
+#ifndef RMW_INTROSPECT__REAL_RMW_HPP_
+#define RMW_INTROSPECT__REAL_RMW_HPP_
+
+#include <string>
+#include "rmw/rmw.h"
+#include "rmw/init.h"
+#include "rmw/types.h"
+
+namespace rmw_introspect {
+
+/// Container for real RMW function pointers
+class RealRMW {
+public:
+  RealRMW();
+  ~RealRMW();
+
+  /// Load RMW implementation from shared library
+  /// @param implementation_name Name without "lib" prefix or ".so" suffix
+  ///                            (e.g., "rmw_fastrtps_cpp")
+  /// @return true on success, false on failure
+  bool load(const char* implementation_name);
+
+  /// Unload the library
+  void unload();
+
+  /// Get the implementation name
+  const std::string& get_name() const { return name_; }
+
+  /// Check if loaded
+  bool is_loaded() const { return lib_handle_ != nullptr; }
+
+  // --- Function Pointers (public for direct access) ---
+
+  // Core
+  const char* (*get_implementation_identifier)(void);
+  const char* (*get_serialization_format)(void);
+
+  // Init
+  rmw_ret_t (*init_options_init)(rmw_init_options_t*, rcutils_allocator_t);
+  rmw_ret_t (*init_options_copy)(const rmw_init_options_t*, rmw_init_options_t*);
+  rmw_ret_t (*init_options_fini)(rmw_init_options_t*);
+  rmw_ret_t (*init)(const rmw_init_options_t*, rmw_context_t*);
+  rmw_ret_t (*shutdown)(rmw_context_t*);
+  rmw_ret_t (*context_fini)(rmw_context_t*);
+
+  // Node
+  rmw_node_t* (*create_node)(rmw_context_t*, const char*, const char*,
+                             const rmw_node_options_t*);
+  rmw_ret_t (*destroy_node)(rmw_node_t*);
+  const rmw_guard_condition_t* (*node_get_graph_guard_condition)(const rmw_node_t*);
+
+  // Publisher
+  rmw_publisher_t* (*create_publisher)(
+    const rmw_node_t*, const rosidl_message_type_support_t*,
+    const char*, const rmw_qos_profile_t*, const rmw_publisher_options_t*);
+  rmw_ret_t (*destroy_publisher)(rmw_node_t*, rmw_publisher_t*);
+  rmw_ret_t (*publish)(const rmw_publisher_t*, const void*,
+                       rmw_publisher_allocation_t*);
+  rmw_ret_t (*publish_serialized_message)(const rmw_publisher_t*,
+                                          const rmw_serialized_message_t*,
+                                          rmw_publisher_allocation_t*);
+  rmw_ret_t (*publisher_get_actual_qos)(const rmw_publisher_t*, rmw_qos_profile_t*);
+  rmw_ret_t (*publisher_count_matched_subscriptions)(const rmw_publisher_t*, size_t*);
+  rmw_ret_t (*publisher_assert_liveliness)(const rmw_publisher_t*);
+  rmw_ret_t (*publisher_wait_for_all_acked)(const rmw_publisher_t*, rmw_time_t);
+
+  // Subscription
+  rmw_subscription_t* (*create_subscription)(
+    const rmw_node_t*, const rosidl_message_type_support_t*,
+    const char*, const rmw_qos_profile_t*, const rmw_subscription_options_t*);
+  rmw_ret_t (*destroy_subscription)(rmw_node_t*, rmw_subscription_t*);
+  rmw_ret_t (*take)(const rmw_subscription_t*, void*, bool*,
+                    rmw_subscription_allocation_t*);
+  rmw_ret_t (*take_with_info)(const rmw_subscription_t*, void*, bool*,
+                              rmw_message_info_t*, rmw_subscription_allocation_t*);
+  rmw_ret_t (*take_serialized_message)(const rmw_subscription_t*,
+                                       rmw_serialized_message_t*, bool*,
+                                       rmw_subscription_allocation_t*);
+  rmw_ret_t (*take_serialized_message_with_info)(
+    const rmw_subscription_t*, rmw_serialized_message_t*, bool*,
+    rmw_message_info_t*, rmw_subscription_allocation_t*);
+  rmw_ret_t (*subscription_get_actual_qos)(const rmw_subscription_t*,
+                                           rmw_qos_profile_t*);
+  rmw_ret_t (*subscription_count_matched_publishers)(const rmw_subscription_t*,
+                                                     size_t*);
+
+  // Service
+  rmw_service_t* (*create_service)(const rmw_node_t*,
+                                   const rosidl_service_type_support_t*,
+                                   const char*, const rmw_qos_profile_t*);
+  rmw_ret_t (*destroy_service)(rmw_node_t*, rmw_service_t*);
+  rmw_ret_t (*take_request)(const rmw_service_t*, rmw_service_info_t*,
+                            void*, bool*);
+  rmw_ret_t (*send_response)(const rmw_service_t*, rmw_request_id_t*, void*);
+
+  // Client
+  rmw_client_t* (*create_client)(const rmw_node_t*,
+                                 const rosidl_service_type_support_t*,
+                                 const char*, const rmw_qos_profile_t*);
+  rmw_ret_t (*destroy_client)(rmw_node_t*, rmw_client_t*);
+  rmw_ret_t (*send_request)(const rmw_client_t*, const void*, int64_t*);
+  rmw_ret_t (*take_response)(const rmw_client_t*, rmw_service_info_t*,
+                             void*, bool*);
+
+  // Guard Condition
+  rmw_guard_condition_t* (*create_guard_condition)(rmw_context_t*);
+  rmw_ret_t (*destroy_guard_condition)(rmw_guard_condition_t*);
+  rmw_ret_t (*trigger_guard_condition)(const rmw_guard_condition_t*);
+
+  // Wait Set
+  rmw_wait_set_t* (*create_wait_set)(rmw_context_t*, size_t);
+  rmw_ret_t (*destroy_wait_set)(rmw_wait_set_t*);
+  rmw_ret_t (*wait)(rmw_subscriptions_t*, rmw_guard_conditions_t*,
+                    rmw_services_t*, rmw_clients_t*, rmw_events_t*,
+                    rmw_wait_set_t*, const rmw_time_t*);
+
+  // Graph
+  rmw_ret_t (*get_node_names)(const rmw_node_t*, rcutils_string_array_t*,
+                              rcutils_string_array_t*);
+  rmw_ret_t (*get_node_names_with_enclaves)(const rmw_node_t*,
+                                            rcutils_string_array_t*,
+                                            rcutils_string_array_t*,
+                                            rcutils_string_array_t*);
+  rmw_ret_t (*count_publishers)(const rmw_node_t*, const char*, size_t*);
+  rmw_ret_t (*count_subscribers)(const rmw_node_t*, const char*, size_t*);
+  rmw_ret_t (*get_gid_for_publisher)(const rmw_publisher_t*, rmw_gid_t*);
+  rmw_ret_t (*compare_gids_equal)(const rmw_gid_t*, const rmw_gid_t*, bool*);
+
+  // Serialization
+  rmw_ret_t (*serialize)(const void*, const rosidl_message_type_support_t*,
+                         rmw_serialized_message_t*);
+  rmw_ret_t (*deserialize)(const rmw_serialized_message_t*,
+                           const rosidl_message_type_support_t*, void*);
+
+private:
+  void* lib_handle_;
+  std::string name_;
+
+  template<typename FuncPtr>
+  bool load_symbol(FuncPtr& func_ptr, const char* symbol_name, bool required = true);
+};
+
+}  // namespace rmw_introspect
+
+#endif  // RMW_INTROSPECT__REAL_RMW_HPP_
+#+END_SRC
+
+*** 1.2: Implement real_rmw.cpp
+
+Key functions:
+- ~RealRMW::load()~: Use ~dlopen()~ with ~RTLD_LAZY | RTLD_LOCAL~
+- ~RealRMW::load_symbol()~: Use ~dlsym()~ to load each function
+- ~RealRMW::unload()~: Use ~dlclose()~
+
+#+BEGIN_SRC cpp
+// src/real_rmw.cpp
+
+#include "rmw_introspect/real_rmw.hpp"
+#include "rmw/error_handling.h"
+#include <dlfcn.h>
+#include <cstring>
+
+namespace rmw_introspect {
+
+RealRMW::RealRMW()
+  : lib_handle_(nullptr),
+    name_(),
+    get_implementation_identifier(nullptr),
+    get_serialization_format(nullptr)
+    // ... initialize all function pointers to nullptr
+{
+}
+
+RealRMW::~RealRMW() {
+  unload();
+}
+
+bool RealRMW::load(const char* implementation_name) {
+  if (lib_handle_) {
+    RMW_SET_ERROR_MSG("RealRMW already loaded");
+    return false;
+  }
+
+  // Validate name
+  if (!implementation_name || !*implementation_name) {
+    RMW_SET_ERROR_MSG("Invalid implementation name");
+    return false;
+  }
+
+  if (strncmp(implementation_name, "rmw_", 4) != 0) {
+    RMW_SET_ERROR_MSG("Implementation name must start with 'rmw_'");
+    return false;
+  }
+
+  // Construct library name
+  std::string lib_name = "lib";
+  lib_name += implementation_name;
+  lib_name += ".so";
+
+  // Load library
+  lib_handle_ = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_LOCAL);
+  if (!lib_handle_) {
+    char error_msg[512];
+    snprintf(error_msg, sizeof(error_msg),
+             "Failed to load %s: %s", lib_name.c_str(), dlerror());
+    RMW_SET_ERROR_MSG(error_msg);
+    return false;
+  }
+
+  name_ = implementation_name;
+
+  // Load all symbols
+  bool success = true;
+
+  // Core
+  success &= load_symbol(get_implementation_identifier,
+                         "rmw_get_implementation_identifier");
+  success &= load_symbol(get_serialization_format,
+                         "rmw_get_serialization_format");
+
+  // Init
+  success &= load_symbol(init_options_init, "rmw_init_options_init");
+  success &= load_symbol(init_options_copy, "rmw_init_options_copy");
+  success &= load_symbol(init_options_fini, "rmw_init_options_fini");
+  success &= load_symbol(init, "rmw_init");
+  success &= load_symbol(shutdown, "rmw_shutdown");
+  success &= load_symbol(context_fini, "rmw_context_fini");
+
+  // Node
+  success &= load_symbol(create_node, "rmw_create_node");
+  success &= load_symbol(destroy_node, "rmw_destroy_node");
+  success &= load_symbol(node_get_graph_guard_condition,
+                         "rmw_node_get_graph_guard_condition");
+
+  // Publisher (load all 8 functions...)
+  success &= load_symbol(create_publisher, "rmw_create_publisher");
+  // ... etc
+
+  if (!success) {
+    unload();
+    return false;
+  }
+
+  return true;
+}
+
+void RealRMW::unload() {
+  if (lib_handle_) {
+    dlclose(lib_handle_);
+    lib_handle_ = nullptr;
+  }
+  name_.clear();
+
+  // Reset all function pointers
+  get_implementation_identifier = nullptr;
+  // ... etc
+}
+
+template<typename FuncPtr>
+bool RealRMW::load_symbol(FuncPtr& func_ptr, const char* symbol_name,
+                          bool required) {
+  func_ptr = reinterpret_cast<FuncPtr>(dlsym(lib_handle_, symbol_name));
+
+  if (!func_ptr) {
+    if (required) {
+      char error_msg[512];
+      snprintf(error_msg, sizeof(error_msg),
+               "Failed to load symbol %s: %s", symbol_name, dlerror());
+      RMW_SET_ERROR_MSG(error_msg);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+}  // namespace rmw_introspect
+#+END_SRC
+
+*** 1.3: Create wrappers.hpp
+
+#+BEGIN_SRC cpp
+// include/rmw_introspect/wrappers.hpp
+
+#ifndef RMW_INTROSPECT__WRAPPERS_HPP_
+#define RMW_INTROSPECT__WRAPPERS_HPP_
+
+#include <string>
+#include "rmw/rmw.h"
+#include "rmw/types.h"
+
+namespace rmw_introspect {
+
+class RealRMW;
+
+/// Wrapper for rmw_context_t
+struct ContextWrapper {
+  rmw_context_t* real_context;
+  RealRMW* real_rmw;
+  std::string real_rmw_name;
+
+  ContextWrapper();
+  ~ContextWrapper();
+};
+
+/// Wrapper for rmw_node_t
+struct NodeWrapper {
+  rmw_node_t* real_node;
+  std::string name;
+  std::string namespace_;
+
+  NodeWrapper(rmw_node_t* real, const char* n, const char* ns);
+  ~NodeWrapper() = default;
+};
+
+/// Wrapper for rmw_publisher_t
+struct PublisherWrapper {
+  rmw_publisher_t* real_publisher;
+  std::string topic_name;
+  std::string message_type;
+  rmw_qos_profile_t qos;
+
+  PublisherWrapper(rmw_publisher_t* real, const std::string& topic,
+                   const std::string& type, const rmw_qos_profile_t& q);
+  ~PublisherWrapper() = default;
+};
+
+/// Wrapper for rmw_subscription_t
+struct SubscriptionWrapper {
+  rmw_subscription_t* real_subscription;
+  std::string topic_name;
+  std::string message_type;
+  rmw_qos_profile_t qos;
+
+  SubscriptionWrapper(rmw_subscription_t* real, const std::string& topic,
+                      const std::string& type, const rmw_qos_profile_t& q);
+  ~SubscriptionWrapper() = default;
+};
+
+/// Wrapper for rmw_service_t
+struct ServiceWrapper {
+  rmw_service_t* real_service;
+  std::string service_name;
+  std::string service_type;
+  rmw_qos_profile_t qos;
+
+  ServiceWrapper(rmw_service_t* real, const std::string& name,
+                 const std::string& type, const rmw_qos_profile_t& q);
+  ~ServiceWrapper() = default;
+};
+
+/// Wrapper for rmw_client_t
+struct ClientWrapper {
+  rmw_client_t* real_client;
+  std::string service_name;
+  std::string service_type;
+  rmw_qos_profile_t qos;
+
+  ClientWrapper(rmw_client_t* real, const std::string& name,
+                const std::string& type, const rmw_qos_profile_t& q);
+  ~ClientWrapper() = default;
+};
+
+/// Wrapper for rmw_guard_condition_t
+struct GuardConditionWrapper {
+  rmw_guard_condition_t* real_guard_condition;
+
+  explicit GuardConditionWrapper(rmw_guard_condition_t* real);
+  ~GuardConditionWrapper() = default;
+};
+
+/// Wrapper for rmw_wait_set_t
+struct WaitSetWrapper {
+  rmw_wait_set_t* real_wait_set;
+
+  explicit WaitSetWrapper(rmw_wait_set_t* real);
+  ~WaitSetWrapper() = default;
+};
+
+}  // namespace rmw_introspect
+
+#endif  // RMW_INTROSPECT__WRAPPERS_HPP_
+#+END_SRC
+
+*** 1.4: Create forwarding.hpp
+
+#+BEGIN_SRC cpp
+// include/rmw_introspect/forwarding.hpp
+
+#ifndef RMW_INTROSPECT__FORWARDING_HPP_
+#define RMW_INTROSPECT__FORWARDING_HPP_
+
+#include "rmw/rmw.h"
+#include "rmw_introspect/wrappers.hpp"
+
+namespace rmw_introspect {
+namespace internal {
+
+// --- Unwrapping Helpers ---
+
+inline rmw_context_t* unwrap_context(const rmw_context_t* ctx) {
+  if (!ctx || !ctx->impl) return nullptr;
+  auto* wrapper = static_cast<ContextWrapper*>(ctx->impl);
+  return wrapper->real_context;
+}
+
+inline rmw_node_t* unwrap_node(const rmw_node_t* node) {
+  if (!node || !node->data) return nullptr;
+  auto* wrapper = static_cast<NodeWrapper*>(node->data);
+  return wrapper->real_node;
+}
+
+inline rmw_publisher_t* unwrap_publisher(const rmw_publisher_t* pub) {
+  if (!pub || !pub->data) return nullptr;
+  auto* wrapper = static_cast<PublisherWrapper*>(pub->data);
+  return wrapper->real_publisher;
+}
+
+inline rmw_subscription_t* unwrap_subscription(const rmw_subscription_t* sub) {
+  if (!sub || !sub->data) return nullptr;
+  auto* wrapper = static_cast<SubscriptionWrapper*>(sub->data);
+  return wrapper->real_subscription;
+}
+
+inline rmw_service_t* unwrap_service(const rmw_service_t* srv) {
+  if (!srv || !srv->data) return nullptr;
+  auto* wrapper = static_cast<ServiceWrapper*>(srv->data);
+  return wrapper->real_service;
+}
+
+inline rmw_client_t* unwrap_client(const rmw_client_t* cli) {
+  if (!cli || !cli->data) return nullptr;
+  auto* wrapper = static_cast<ClientWrapper*>(cli->data);
+  return wrapper->real_client;
+}
+
+inline rmw_guard_condition_t* unwrap_guard_condition(
+  const rmw_guard_condition_t* gc) {
+  if (!gc || !gc->data) return nullptr;
+  auto* wrapper = static_cast<GuardConditionWrapper*>(gc->data);
+  return wrapper->real_guard_condition;
+}
+
+inline rmw_wait_set_t* unwrap_wait_set(const rmw_wait_set_t* ws) {
+  if (!ws || !ws->data) return nullptr;
+  auto* wrapper = static_cast<WaitSetWrapper*>(ws->data);
+  return wrapper->real_wait_set;
+}
+
+}  // namespace internal
+}  // namespace rmw_introspect
+
+#endif  // RMW_INTROSPECT__FORWARDING_HPP_
+#+END_SRC
+
+*** 1.5: Create mode.hpp
+
+#+BEGIN_SRC cpp
+// include/rmw_introspect/mode.hpp
+
+#ifndef RMW_INTROSPECT__MODE_HPP_
+#define RMW_INTROSPECT__MODE_HPP_
+
+namespace rmw_introspect {
+
+class RealRMW;
+
+namespace internal {
+
+// Global state
+extern RealRMW* g_real_rmw;
+
+// Mode checking
+inline bool is_intermediate_mode() {
+  return g_real_rmw != nullptr;
+}
+
+inline bool is_recording_only_mode() {
+  return g_real_rmw == nullptr;
+}
+
+}  // namespace internal
+}  // namespace rmw_introspect
+
+#endif  // RMW_INTROSPECT__MODE_HPP_
+#+END_SRC
+
+*** 1.6: Update rmw_init.cpp
+
+Modify to:
+1. Check ~RMW_INTROSPECT_DELEGATE_TO~ environment variable
+2. Load real RMW if set
+3. Initialize context wrapper
+4. Forward to real RMW
+
+Key changes:
+#+BEGIN_SRC cpp
+// In rmw_init.cpp
+
+#include "rmw_introspect/real_rmw.hpp"
+#include "rmw_introspect/wrappers.hpp"
+#include "rmw_introspect/mode.hpp"
+#include <mutex>
+#include <atomic>
+
+namespace rmw_introspect {
+namespace internal {
+
+RealRMW* g_real_rmw = nullptr;
+std::mutex g_init_mutex;
+std::atomic<size_t> g_context_count{0};
+
+}  // namespace internal
+}  // namespace rmw_introspect
+
+rmw_ret_t rmw_init(
+  const rmw_init_options_t* options,
+  rmw_context_t* context)
+{
+  using namespace rmw_introspect::internal;
+
+  std::lock_guard<std::mutex> lock(g_init_mutex);
+
+  // First initialization?
+  if (g_context_count == 0) {
+    const char* delegate_to = std::getenv("RMW_INTROSPECT_DELEGATE_TO");
+    if (delegate_to && *delegate_to) {
+      g_real_rmw = new RealRMW;
+      if (!g_real_rmw->load(delegate_to)) {
+        delete g_real_rmw;
+        g_real_rmw = nullptr;
+        return RMW_RET_ERROR;
+      }
+    }
+  }
+
+  ++g_context_count;
+
+  if (is_intermediate_mode()) {
+    // Create wrapper
+    auto* wrapper = new ContextWrapper;
+    wrapper->real_rmw = g_real_rmw;
+    wrapper->real_context = new rmw_context_t;
+    *wrapper->real_context = rmw_get_zero_initialized_context();
+
+    // Create real init options with correct identifier
+    rmw_init_options_t real_options = *options;
+    real_options.implementation_identifier =
+      g_real_rmw->get_implementation_identifier();
+
+    // Forward to real RMW
+    rmw_ret_t ret = g_real_rmw->init(&real_options, wrapper->real_context);
+    if (ret != RMW_RET_OK) {
+      delete wrapper->real_context;
+      delete wrapper;
+      --g_context_count;
+      return ret;
+    }
+
+    // Set up our context
+    context->implementation_identifier = rmw_introspect_cpp_identifier;
+    context->impl = wrapper;
+    context->instance_id = options->instance_id;
+    context->actual_domain_id = wrapper->real_context->actual_domain_id;
+
+    return RMW_RET_OK;
+  } else {
+    // Recording-only mode (existing code)
+    context->instance_id = options->instance_id;
+    context->implementation_identifier = rmw_introspect_cpp_identifier;
+    context->actual_domain_id = options->domain_id;
+    context->impl = nullptr;
+    return RMW_RET_OK;
+  }
+}
+#+END_SRC
+
+*** 1.7: Testing Phase 1
+
+Write tests for:
+1. Loading valid RMW implementations
+2. Handling missing libraries
+3. Handling missing symbols
+4. Mode detection (recording-only vs intermediate)
+5. Context creation/destruction in both modes
+
+** Phase 2: Publishers & Subscriptions
+
+*** 2.1: Update rmw_publisher.cpp
+
+Modify ~rmw_create_publisher()~:
+1. Extract and record metadata (as before)
+2. Check mode
+3. If intermediate mode:
+   - Unwrap node
+   - Forward to real RMW
+   - Wrap result
+4. If recording-only mode:
+   - Return stub handle (as before)
+
+Similar updates for:
+- ~rmw_destroy_publisher()~
+- ~rmw_publish()~
+- ~rmw_publish_serialized_message()~
+- ~rmw_publisher_get_actual_qos()~
+- ~rmw_publisher_count_matched_subscriptions()~
+
+*** 2.2: Update rmw_subscription.cpp
+
+Similar pattern:
+- ~rmw_create_subscription()~
+- ~rmw_destroy_subscription()~
+- ~rmw_take()~
+- ~rmw_take_with_info()~
+- ~rmw_take_serialized_message()~
+- ~rmw_take_serialized_message_with_info()~
+- ~rmw_subscription_get_actual_qos()~
+- ~rmw_subscription_count_matched_publishers()~
+
+*** 2.3: Testing Phase 2
+
+Integration tests:
+1. Talker/listener with FastRTPS backend
+2. Verify messages pass through correctly
+3. Verify introspection data is recorded
+4. Compare latency with direct FastRTPS
+
+** Phase 3: Services & Clients
+
+*** 3.1: Update rmw_service.cpp
+
+Forward:
+- ~rmw_create_service()~
+- ~rmw_destroy_service()~
+- ~rmw_take_request()~
+- ~rmw_send_response()~
+
+*** 3.2: Update rmw_client.cpp
+
+Forward:
+- ~rmw_create_client()~
+- ~rmw_destroy_client()~
+- ~rmw_send_request()~
+- ~rmw_take_response()~
+
+*** 3.3: Testing Phase 3
+
+Integration tests:
+1. AddTwoInts service example
+2. Verify request/response flow
+3. Check introspection data
+
+** Phase 4: Advanced Features
+
+*** 4.1: Update rmw_guard_condition.cpp
+
+Forward:
+- ~rmw_create_guard_condition()~
+- ~rmw_destroy_guard_condition()~
+- ~rmw_trigger_guard_condition()~
+
+*** 4.2: Update rmw_wait.cpp
+
+This is complex - wait sets contain arrays of handles that need unwrapping.
+
+#+BEGIN_SRC cpp
+rmw_ret_t rmw_wait(
+  rmw_subscriptions_t* subscriptions,
+  rmw_guard_conditions_t* guard_conditions,
+  rmw_services_t* services,
+  rmw_clients_t* clients,
+  rmw_events_t* events,
+  rmw_wait_set_t* wait_set,
+  const rmw_time_t* wait_timeout)
+{
+  if (!is_intermediate_mode()) {
+    // Recording-only: sleep for timeout
+    // (existing stub implementation)
+  }
+
+  // Unwrap wait set
+  rmw_wait_set_t* real_wait_set = unwrap_wait_set(wait_set);
+
+  // Unwrap all handles in subscriptions array
+  std::vector<rmw_subscription_t*> real_subs;
+  if (subscriptions) {
+    for (size_t i = 0; i < subscriptions->subscriber_count; ++i) {
+      real_subs.push_back(unwrap_subscription(subscriptions->subscribers[i]));
+    }
+  }
+
+  // Similar for guard_conditions, services, clients, events...
+
+  // Build real arrays
+  rmw_subscriptions_t real_subscriptions = *subscriptions;
+  real_subscriptions.subscribers = real_subs.data();
+
+  // Forward to real RMW
+  rmw_ret_t ret = g_real_rmw->wait(
+    &real_subscriptions,
+    &real_guard_conditions,
+    &real_services,
+    &real_clients,
+    &real_events,
+    real_wait_set,
+    wait_timeout);
+
+  // On success, update original arrays with ready flags
+  // (real RMW sets handles to nullptr if not ready)
+  if (ret == RMW_RET_OK && subscriptions) {
+    for (size_t i = 0; i < subscriptions->subscriber_count; ++i) {
+      if (!real_subs[i]) {
+        subscriptions->subscribers[i] = nullptr;
+      }
+    }
+  }
+
+  return ret;
+}
+#+END_SRC
+
+*** 4.3: Update rmw_graph.cpp
+
+Forward all graph queries:
+- ~rmw_get_node_names()~
+- ~rmw_get_node_names_with_enclaves()~
+- ~rmw_count_publishers()~
+- ~rmw_count_subscribers()~
+- ~rmw_get_gid_for_publisher()~
+- ~rmw_compare_gids_equal()~
+
+*** 4.4: Testing Phase 4
+
+1. Test wait with multiple subscriptions
+2. Verify graph queries return correct data
+3. Test with complex multi-node systems
+
+* Code Patterns Reference
+
+** Creating Stub Handles (Recording-Only Mode)
+
+#+BEGIN_SRC cpp
+rmw_publisher_t* create_stub_publisher(
+  const rmw_node_t* node,
+  const char* topic_name,
+  const rmw_publisher_options_t* options)
+{
+  rmw_publisher_t* pub = new (std::nothrow) rmw_publisher_t;
+  if (!pub) {
+    RMW_SET_ERROR_MSG("failed to allocate publisher");
+    return nullptr;
+  }
+
+  pub->implementation_identifier = rmw_introspect_cpp_identifier;
+  pub->data = nullptr;  // No wrapper needed
+  pub->topic_name = topic_name;
+  pub->options = *options;
+  pub->can_loan_messages = false;
+
+  return pub;
+}
+#+END_SRC
+
+** Full Creation Pattern (Intermediate Mode)
+
+#+BEGIN_SRC cpp
+rmw_publisher_t* rmw_create_publisher(
+  const rmw_node_t* node,
+  const rosidl_message_type_support_t* type_support,
+  const char* topic_name,
+  const rmw_qos_profile_t* qos_profile,
+  const rmw_publisher_options_t* publisher_options)
+{
+  // 1. Validate
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(node, nullptr);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(type_support, nullptr);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(topic_name, nullptr);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(qos_profile, nullptr);
+
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    node, node->implementation_identifier,
+    rmw_introspect_cpp_identifier, return nullptr);
+
+  // 2. Extract metadata
+  std::string message_type = rmw_introspect::extract_message_type(type_support);
+
+  // 3. Record metadata
+  rmw_introspect::PublisherInfo info;
+  info.node_name = node->name;
+  info.node_namespace = node->namespace_;
+  info.topic_name = topic_name;
+  info.message_type = message_type;
+  info.qos = rmw_introspect::QoSProfile::from_rmw(*qos_profile);
+  info.timestamp = rmw_introspect::get_current_timestamp();
+  rmw_introspect::IntrospectionData::instance().record_publisher(info);
+
+  // 4. Check mode
+  if (rmw_introspect::internal::is_recording_only_mode()) {
+    return create_stub_publisher(node, topic_name, publisher_options);
+  }
+
+  // 5. Unwrap node
+  rmw_node_t* real_node = rmw_introspect::internal::unwrap_node(node);
+  if (!real_node) {
+    RMW_SET_ERROR_MSG("failed to unwrap node");
+    return nullptr;
+  }
+
+  // 6. Forward to real RMW
+  rmw_publisher_t* real_pub =
+    rmw_introspect::internal::g_real_rmw->create_publisher(
+      real_node, type_support, topic_name, qos_profile, publisher_options);
+
+  if (!real_pub) {
+    return nullptr;  // Error already set by real RMW
+  }
+
+  // 7. Create wrapper
+  auto* wrapper = new (std::nothrow) rmw_introspect::PublisherWrapper(
+    real_pub, topic_name, message_type, *qos_profile);
+
+  if (!wrapper) {
+    rmw_introspect::internal::g_real_rmw->destroy_publisher(real_node, real_pub);
+    RMW_SET_ERROR_MSG("failed to allocate publisher wrapper");
+    return nullptr;
+  }
+
+  // 8. Create public handle
+  rmw_publisher_t* pub = new (std::nothrow) rmw_publisher_t;
+  if (!pub) {
+    rmw_introspect::internal::g_real_rmw->destroy_publisher(real_node, real_pub);
+    delete wrapper;
+    RMW_SET_ERROR_MSG("failed to allocate publisher handle");
+    return nullptr;
+  }
+
+  // 9. Initialize public handle
+  pub->implementation_identifier = rmw_introspect_cpp_identifier;
+  pub->data = wrapper;
+  pub->topic_name = real_pub->topic_name;
+  pub->options = real_pub->options;
+  pub->can_loan_messages = real_pub->can_loan_messages;
+
+  return pub;
+}
+#+END_SRC
+
+** Full Destruction Pattern
+
+#+BEGIN_SRC cpp
+rmw_ret_t rmw_destroy_publisher(
+  rmw_node_t* node,
+  rmw_publisher_t* publisher)
+{
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(node, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
+
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
+    publisher, publisher->implementation_identifier,
+    rmw_introspect_cpp_identifier,
+    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+
+  if (rmw_introspect::internal::is_recording_only_mode()) {
+    delete publisher;
+    return RMW_RET_OK;
+  }
+
+  rmw_node_t* real_node = rmw_introspect::internal::unwrap_node(node);
+  auto* wrapper = static_cast<rmw_introspect::PublisherWrapper*>(publisher->data);
+  rmw_publisher_t* real_pub = wrapper->real_publisher;
+
+  rmw_ret_t ret =
+    rmw_introspect::internal::g_real_rmw->destroy_publisher(real_node, real_pub);
+
+  delete wrapper;
+  delete publisher;
+
+  return ret;
+}
+#+END_SRC
+
+* CMakeLists.txt Updates
+
+Add new source files:
+
+#+BEGIN_SRC cmake
+# Add new sources
+set(rmw_introspect_cpp_SOURCES
+  # Existing sources
+  src/rmw_init.cpp
+  src/rmw_node.cpp
+  src/rmw_publisher.cpp
+  src/rmw_subscription.cpp
+  src/rmw_service.cpp
+  src/rmw_client.cpp
+  src/rmw_guard_condition.cpp
+  src/rmw_wait.cpp
+  src/rmw_graph.cpp
+  src/rmw_event.cpp
+  src/type_support.cpp
+  src/data.cpp
+
+  # New sources for intermediate layer
+  src/real_rmw.cpp
+  src/wrappers.cpp
+  src/forwarding.cpp
+)
+
+# Link against dl for dlopen
+target_link_libraries(rmw_introspect_cpp
+  ${CMAKE_DL_LIBS}  # <-- Add this
+)
+#+END_SRC
+
+* Testing Strategy
+
+** Unit Tests
+
+*** test_real_rmw.cpp
+
+#+BEGIN_SRC cpp
+#include <gtest/gtest.h>
+#include "rmw_introspect/real_rmw.hpp"
+
+TEST(RealRMWTest, LoadFastRTPS) {
+  rmw_introspect::RealRMW real_rmw;
+
+  // Skip if FastRTPS not available
+  if (!real_rmw.load("rmw_fastrtps_cpp")) {
+    GTEST_SKIP() << "FastRTPS not available";
+  }
+
+  EXPECT_TRUE(real_rmw.is_loaded());
+  EXPECT_EQ(real_rmw.get_name(), "rmw_fastrtps_cpp");
+
+  // Check function pointers loaded
+  EXPECT_NE(real_rmw.get_implementation_identifier, nullptr);
+  EXPECT_NE(real_rmw.init, nullptr);
+  EXPECT_NE(real_rmw.create_publisher, nullptr);
+}
+
+TEST(RealRMWTest, LoadInvalidLibrary) {
+  rmw_introspect::RealRMW real_rmw;
+  EXPECT_FALSE(real_rmw.load("rmw_nonexistent_impl"));
+}
+
+TEST(RealRMWTest, UnloadLibrary) {
+  rmw_introspect::RealRMW real_rmw;
+
+  if (!real_rmw.load("rmw_fastrtps_cpp")) {
+    GTEST_SKIP();
+  }
+
+  real_rmw.unload();
+  EXPECT_FALSE(real_rmw.is_loaded());
+}
+#+END_SRC
+
+*** test_mode.cpp
+
+#+BEGIN_SRC cpp
+#include <gtest/gtest.h>
+#include "rmw_introspect/mode.hpp"
+
+TEST(ModeTest, RecordingOnlyByDefault) {
+  // Before any initialization
+  EXPECT_TRUE(rmw_introspect::internal::is_recording_only_mode());
+  EXPECT_FALSE(rmw_introspect::internal::is_intermediate_mode());
+}
+#+END_SRC
+
+** Integration Tests
+
+*** test_talker_listener.cpp
+
+#+BEGIN_SRC cpp
+#include <gtest/gtest.h>
+#include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/string.hpp"
+
+class TalkerListenerTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    // Set environment for intermediate mode
+    setenv("RMW_INTROSPECT_DELEGATE_TO", "rmw_fastrtps_cpp", 1);
+    rclcpp::init(0, nullptr);
+  }
+
+  void TearDown() override {
+    rclcpp::shutdown();
+    unsetenv("RMW_INTROSPECT_DELEGATE_TO");
+  }
+};
+
+TEST_F(TalkerListenerTest, PublishAndReceive) {
+  auto talker = rclcpp::Node::make_shared("talker");
+  auto listener = rclcpp::Node::make_shared("listener");
+
+  auto pub = talker->create_publisher<std_msgs::msg::String>("chatter", 10);
+
+  bool received = false;
+  std::string received_data;
+
+  auto sub = listener->create_subscription<std_msgs::msg::String>(
+    "chatter", 10,
+    [&](const std_msgs::msg::String::SharedPtr msg) {
+      received = true;
+      received_data = msg->data;
+    });
+
+  // Publish message
+  auto msg = std_msgs::msg::String();
+  msg.data = "Hello, World!";
+  pub->publish(msg);
+
+  // Spin and wait for message
+  auto start = std::chrono::steady_clock::now();
+  while (!received &&
+         std::chrono::steady_clock::now() - start < std::chrono::seconds(5)) {
+    rclcpp::spin_some(listener);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  EXPECT_TRUE(received);
+  EXPECT_EQ(received_data, "Hello, World!");
+}
+#+END_SRC
+
+* Debugging Tips
+
+** Enable Verbose Logging
+
+Set environment variable:
+#+BEGIN_SRC bash
+export RMW_INTROSPECT_VERBOSE=1
+#+END_SRC
+
+Add logging in code:
+#+BEGIN_SRC cpp
+#define INTROSPECT_LOG(msg) \
+  if (std::getenv("RMW_INTROSPECT_VERBOSE") && \
+      std::string(std::getenv("RMW_INTROSPECT_VERBOSE")) == "1") { \
+    fprintf(stderr, "[rmw_introspect] %s\n", msg); \
+  }
+
+// Usage
+INTROSPECT_LOG("Loading real RMW: rmw_fastrtps_cpp");
+INTROSPECT_LOG("Publisher created successfully");
+#+END_SRC
+
+** Check dlopen Errors
+
+#+BEGIN_SRC cpp
+void* handle = dlopen(lib_name.c_str(), RTLD_LAZY | RTLD_LOCAL);
+if (!handle) {
+  fprintf(stderr, "dlopen failed: %s\n", dlerror());
+}
+#+END_SRC
+
+** Verify Function Pointers
+
+#+BEGIN_SRC cpp
+if (!g_real_rmw->create_publisher) {
+  fprintf(stderr, "ERROR: create_publisher function pointer is null!\n");
+  abort();
+}
+#+END_SRC
+
+** Use gdb
+
+#+BEGIN_SRC bash
+# Set environment
+export RMW_IMPLEMENTATION=rmw_introspect_cpp
+export RMW_INTROSPECT_DELEGATE_TO=rmw_fastrtps_cpp
+
+# Run with gdb
+gdb --args ros2 run demo_nodes_cpp talker
+
+# Set breakpoints
+(gdb) break rmw_create_publisher
+(gdb) break rmw_introspect::RealRMW::load
+(gdb) run
+#+END_SRC
+
+* Performance Optimization
+
+** Minimize Allocations
+
+Use stack allocation where possible:
+#+BEGIN_SRC cpp
+// Instead of:
+auto* info = new PublisherInfo;
+// ... fill info
+IntrospectionData::instance().record_publisher(*info);
+delete info;
+
+// Do:
+PublisherInfo info;
+// ... fill info
+IntrospectionData::instance().record_publisher(info);
+#+END_SRC
+
+** Cache Frequently-Used Pointers
+
+#+BEGIN_SRC cpp
+struct PublisherWrapper {
+  rmw_publisher_t* real_publisher;
+
+  // Cache frequently-accessed fields
+  const char* cached_topic_name;  // Points to real_publisher->topic_name
+
+  PublisherWrapper(rmw_publisher_t* real, ...)
+    : real_publisher(real),
+      cached_topic_name(real->topic_name) {}
+};
+#+END_SRC
+
+** Lazy Introspection Data Export
+
+Only write to file on shutdown, not on every operation.
+
+* Security Checklist
+
+- [ ] Validate ~RMW_INTROSPECT_DELEGATE_TO~ format (must start with "rmw_")
+- [ ] Use ~RTLD_LOCAL~ flag with dlopen (don't pollute global namespace)
+- [ ] Check for null pointers before dereferencing
+- [ ] Validate all function pointers loaded successfully
+- [ ] Clear sensitive data from wrappers on destruction
+- [ ] Don't log potentially sensitive information
+- [ ] Handle dlopen failures gracefully (don't crash)
+
+* References
+
+- [[file:architecture.org][Architecture Design Document]]
+- [[file:api-design.org][API Design Document]]
+- [[file:roadmap.org][Development Roadmap]]
+- dlopen(3) man page: ~man dlopen~
+- ROS 2 RMW API: https://docs.ros.org/en/rolling/Concepts/About-Internal-Interfaces.html
