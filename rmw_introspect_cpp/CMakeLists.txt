@@ -44,6 +44,9 @@ add_library(${PROJECT_NAME} SHARED
   src/rmw_callbacks.cpp
   src/rmw_features.cpp
   src/rmw_logging.cpp
+  # Phase 1: Core infrastructure
+  src/real_rmw.cpp
+  src/wrappers.cpp
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -59,6 +62,11 @@ ament_target_dependencies(${PROJECT_NAME}
   rosidl_typesupport_introspection_c
   rosidl_typesupport_cpp
   rmw_dds_common
+)
+
+# Link dl library for dlopen/dlsym support
+target_link_libraries(${PROJECT_NAME}
+  ${CMAKE_DL_LIBS}
 )
 
 # Export library
@@ -116,6 +124,15 @@ if(BUILD_TESTING)
   ament_add_gtest(test_phase4_stubs test/test_phase4_stubs.cpp)
   target_link_libraries(test_phase4_stubs ${PROJECT_NAME})
   ament_target_dependencies(test_phase4_stubs rcutils rmw std_msgs std_srvs rosidl_typesupport_cpp)
+
+  # Phase 1 tests: Core infrastructure
+  ament_add_gtest(test_real_rmw test/test_real_rmw.cpp)
+  target_link_libraries(test_real_rmw ${PROJECT_NAME})
+  ament_target_dependencies(test_real_rmw rcutils)
+
+  ament_add_gtest(test_init_intermediate test/test_init_intermediate.cpp)
+  target_link_libraries(test_init_intermediate ${PROJECT_NAME})
+  ament_target_dependencies(test_init_intermediate rcutils rmw)
 endif()
 
 ament_package()
