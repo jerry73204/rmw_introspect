@@ -31,35 +31,35 @@ Implement foundational components for dlopen-based forwarding. See [[file:implem
 
 *** Header Files
 
-- [ ] Create real_rmw.hpp with RealRMW class and ~65 function pointers (see [[file:implementation-guide.org::*1.1: Create real_rmw.hpp][implementation-guide.org § 1.1]])
-- [ ] Create wrappers.hpp with all wrapper structures (see [[file:api-design.org::*Wrapper Structure Definitions][api-design.org § Wrappers]])
-- [ ] Create forwarding.hpp with unwrap helpers for all handle types
-- [ ] Create mode.hpp with global state and mode checking functions
+- [X] Create real_rmw.hpp with RealRMW class and ~65 function pointers (see [[file:implementation-guide.org::*1.1: Create real_rmw.hpp][implementation-guide.org § 1.1]])
+- [X] Create wrappers.hpp with all wrapper structures (see [[file:api-design.org::*Wrapper Structure Definitions][api-design.org § Wrappers]])
+- [X] Create forwarding.hpp with unwrap helpers for all handle types
+- [X] Create mode.hpp with global state and mode checking functions
 
 *** Core Components
 
-- [ ] Implement RealRMW::load() with dlopen and symbol loading (see [[file:implementation-guide.org::*1.2: Implement real_rmw.cpp][implementation-guide.org § 1.2]])
-- [ ] Implement RealRMW::unload() with dlclose
-- [ ] Load all ~65 RMW function pointers with comprehensive error handling
-- [ ] Implement wrapper constructors/destructors
-- [ ] Implement global state initialization
+- [X] Implement RealRMW::load() with dlopen and symbol loading (see [[file:implementation-guide.org::*1.2: Implement real_rmw.cpp][implementation-guide.org § 1.2]])
+- [X] Implement RealRMW::unload() with dlclose
+- [X] Load all ~65 RMW function pointers with comprehensive error handling
+- [X] Implement wrapper constructors/destructors
+- [X] Implement global state initialization
 
 *** Initialization Updates
 
-- [ ] Add mode detection in rmw_init() (see [[file:api-design.org::*Mode Selection Logic][api-design.org § Mode Selection]])
-- [ ] Implement initialization guard with mutex and reference counting
-- [ ] Load real RMW in intermediate mode (see [[file:implementation-guide.org::*1.3: Update rmw_init.cpp for Intermediate Mode][implementation-guide.org § 1.3]])
-- [ ] Create ContextWrapper and forward init to real RMW
-- [ ] Update rmw_shutdown() and rmw_context_fini() for intermediate mode
-- [ ] Unload real RMW on last context finalization
+- [X] Add mode detection in rmw_init() (see [[file:api-design.org::*Mode Selection Logic][api-design.org § Mode Selection]])
+- [X] Implement initialization guard with mutex and reference counting
+- [X] Load real RMW in intermediate mode (see [[file:implementation-guide.org::*1.3: Update rmw_init.cpp for Intermediate Mode][implementation-guide.org § 1.3]])
+- [X] Create ContextWrapper and forward init to real RMW
+- [X] Update rmw_shutdown() and rmw_context_fini() for intermediate mode
+- [X] Unload real RMW on last context finalization
 
 *** Unit Tests
 
-- [ ] Test loading rmw_fastrtps_cpp and rmw_cyclonedds_cpp
-- [ ] Test loading invalid library (expect failure)
-- [ ] Test recording-only vs intermediate mode detection
-- [ ] Test init/shutdown in both modes
-- [ ] Test multiple context initialization and reference counting
+- [X] Test loading rmw_fastrtps_cpp and rmw_cyclonedds_cpp
+- [X] Test loading invalid library (expect failure)
+- [X] Test recording-only vs intermediate mode detection
+- [X] Test init/shutdown in both modes
+- [X] Test multiple context initialization and reference counting
 - [ ] Verify no memory leaks with valgrind
 
 ** Phase 2: Publishers & Subscriptions
