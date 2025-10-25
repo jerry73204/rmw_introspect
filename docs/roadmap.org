@@ -2,7 +2,6 @@
 #+AUTHOR: ROS-Plan Contributors
 #+DATE: 2025-10-22
 #+OPTIONS: toc:2 num:t
-#+TODO: TODO IN-PROGRESS BLOCKED | DONE SKIPPED
 
 * Overview
 
@@ -10,1322 +9,286 @@ This roadmap outlines the phased development plan for transforming rmw_introspec
 from a recording-only RMW implementation into an intermediate layer that forwards
 calls to real RMW implementations via dlopen.
 
+See [[file:architecture.org][Architecture Design]] for the overall design approach and [[file:api-design.org][API Design]] for
+detailed API specifications.
+
 * Development Phases
 
-** DONE Phase 0: Research & Design [100%]
-CLOSED: [2025-10-22]
-
-*** DONE Feasibility Analysis
-CLOSED: [2025-10-22]
+** Phase 0: Research & Design
 
 - [X] Evaluate dlopen approach feasibility
-- [X] Identify technical challenges (handle wrapping, identifiers, etc.)
-- [X] Assess compatibility with ROS 2 RMW API
-- [X] Estimate complexity and effort
-
-*** DONE Architecture Design
-CLOSED: [2025-10-22]
-
-- [X] Design handle wrapping pattern
-- [X] Design dlopen loading mechanism
+- [X] Design handle wrapping pattern (see [[file:architecture.org::*Pattern 1: Handle Wrapping][architecture.org § Handle Wrapping]])
+- [X] Design dlopen loading mechanism (see [[file:architecture.org::*Pattern 2: Dynamic Library Loading][architecture.org § Dynamic Library Loading]])
 - [X] Design context propagation strategy
-- [X] Design mode detection (recording-only vs intermediate)
-- [X] Document error handling strategy
+- [X] Design mode detection (see [[file:api-design.org::*Mode Selection Logic][api-design.org § Mode Selection]])
+- [X] Define environment variables (see [[file:api-design.org::*Environment Variables API][api-design.org § Environment Variables]])
+- [X] Define wrapper structures (see [[file:api-design.org::*Wrapper Structure Definitions][api-design.org § Wrapper Structures]])
+- [X] Create design documentation
 
-*** DONE API Design
-CLOSED: [2025-10-22]
+** Phase 1: Core Infrastructure
 
-- [X] Define environment variables
-- [X] Define wrapper structures
-- [X] Define RealRMW function pointer container
-- [X] Define forwarding patterns
-- [X] Document helper APIs
+Implement foundational components for dlopen-based forwarding. See [[file:implementation-guide.org::*Phase 1: Core Infrastructure][implementation-guide.org § Phase 1]].
 
-*** DONE Documentation
-CLOSED: [2025-10-22]
+*** Header Files
 
-- [X] Create architecture.org
-- [X] Create api-design.org
-- [X] Create implementation-guide.org
-- [X] Create roadmap.org (this document)
+- [ ] Create real_rmw.hpp with RealRMW class and ~65 function pointers (see [[file:implementation-guide.org::*1.1: Create real_rmw.hpp][implementation-guide.org § 1.1]])
+- [ ] Create wrappers.hpp with all wrapper structures (see [[file:api-design.org::*Wrapper Structure Definitions][api-design.org § Wrappers]])
+- [ ] Create forwarding.hpp with unwrap helpers for all handle types
+- [ ] Create mode.hpp with global state and mode checking functions
 
-**** Success Criteria
-- [X] All design documents complete
-- [X] Team consensus on approach
-- [X] Clear implementation path identified
+*** Core Components
 
-**** Estimated Effort: 2-3 days
-**** Actual Effort: 1 day
-
-** TODO Phase 1: Core Infrastructure [0%]
-DEADLINE: <2025-11-05>
-
-This phase implements the foundational components for dlopen-based forwarding.
-
-*** TODO Create Header Files [0%]
-
-**** TODO Create real_rmw.hpp
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Define RealRMW class
-- [ ] Declare all function pointers (~65 functions)
-- [ ] Add load/unload methods
-- [ ] Add symbol loading helper template
-- [ ] Document all members
-
-**** TODO Create wrappers.hpp
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Define ContextWrapper
-- [ ] Define NodeWrapper
-- [ ] Define PublisherWrapper
-- [ ] Define SubscriptionWrapper
-- [ ] Define ServiceWrapper
-- [ ] Define ClientWrapper
-- [ ] Define GuardConditionWrapper
-- [ ] Define WaitSetWrapper
-
-**** TODO Create forwarding.hpp
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Declare unwrap helpers for all handle types
-- [ ] Add inline implementations
-- [ ] Add null pointer checks
-
-**** TODO Create mode.hpp
-:PROPERTIES:
-:EFFORT: 30m
-:END:
-
-- [ ] Declare global state variables
-- [ ] Add mode checking functions
-- [ ] Add initialization guard declarations
-
-*** TODO Implement Core Components [0%]
-
-**** TODO Implement real_rmw.cpp
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Implement RealRMW constructor/destructor
-- [ ] Implement load() with dlopen
-- [ ] Implement unload() with dlclose
-- [ ] Implement load_symbol() template
-- [ ] Load all ~65 function pointers
-- [ ] Add comprehensive error handling
-- [ ] Add validation for implementation name
-- [ ] Add logging for debugging
-
-**** TODO Implement wrappers.cpp
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Implement ContextWrapper constructor/destructor
-- [ ] Implement other wrapper constructors
-- [ ] Add any necessary helper methods
-
-**** TODO Implement forwarding.cpp
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
+- [ ] Implement RealRMW::load() with dlopen and symbol loading (see [[file:implementation-guide.org::*1.2: Implement real_rmw.cpp][implementation-guide.org § 1.2]])
+- [ ] Implement RealRMW::unload() with dlclose
+- [ ] Load all ~65 RMW function pointers with comprehensive error handling
+- [ ] Implement wrapper constructors/destructors
 - [ ] Implement global state initialization
-- [ ] Implement any non-inline forwarding helpers
 
-*** TODO Update rmw_init.cpp [0%]
+*** Initialization Updates
 
-**** TODO Add Mode Detection
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Check RMW_INTROSPECT_DELEGATE_TO environment variable
-- [ ] Implement initialization guard with mutex
-- [ ] Implement reference counting for multiple contexts
-- [ ] Add verbose logging support
-
-**** TODO Implement Intermediate Mode Initialization
-:PROPERTIES:
-:EFFORT: 3h
-:END:
-
-- [ ] Load real RMW in rmw_init()
-- [ ] Create ContextWrapper
-- [ ] Forward init to real RMW
-- [ ] Handle errors gracefully
-- [ ] Preserve recording-only mode as fallback
-
-**** TODO Implement Cleanup
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_shutdown() for intermediate mode
-- [ ] Update rmw_context_fini() for intermediate mode
+- [ ] Add mode detection in rmw_init() (see [[file:api-design.org::*Mode Selection Logic][api-design.org § Mode Selection]])
+- [ ] Implement initialization guard with mutex and reference counting
+- [ ] Load real RMW in intermediate mode (see [[file:implementation-guide.org::*1.3: Update rmw_init.cpp for Intermediate Mode][implementation-guide.org § 1.3]])
+- [ ] Create ContextWrapper and forward init to real RMW
+- [ ] Update rmw_shutdown() and rmw_context_fini() for intermediate mode
 - [ ] Unload real RMW on last context finalization
-- [ ] Ensure proper resource cleanup
 
-*** TODO Write Unit Tests [0%]
+*** Unit Tests
 
-**** TODO test_real_rmw.cpp
-:PROPERTIES:
-:EFFORT: 3h
-:END:
-
-- [ ] Test loading rmw_fastrtps_cpp
-- [ ] Test loading rmw_cyclonedds_cpp (if available)
+- [ ] Test loading rmw_fastrtps_cpp and rmw_cyclonedds_cpp
 - [ ] Test loading invalid library (expect failure)
-- [ ] Test loading invalid implementation name
-- [ ] Test unload functionality
-- [ ] Test repeated load/unload cycles
-- [ ] Verify all function pointers loaded
+- [ ] Test recording-only vs intermediate mode detection
+- [ ] Test init/shutdown in both modes
+- [ ] Test multiple context initialization and reference counting
+- [ ] Verify no memory leaks with valgrind
 
-**** TODO test_mode.cpp
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+** Phase 2: Publishers & Subscriptions
 
-- [ ] Test recording-only mode detection
-- [ ] Test intermediate mode detection
-- [ ] Test mode transitions
+Implement forwarding for publisher and subscription operations. See [[file:implementation-guide.org::*Phase 2: Publishers and Subscriptions][implementation-guide.org § Phase 2]].
 
-**** TODO test_init_forwarding.cpp
-:PROPERTIES:
-:EFFORT: 3h
-:END:
+*** Node Operations
 
-- [ ] Test init in recording-only mode
-- [ ] Test init in intermediate mode with FastRTPS
-- [ ] Test init with invalid delegate
-- [ ] Test multiple context initialization
-- [ ] Test context finalization
-- [ ] Test shutdown with real RMW
+- [ ] Update rmw_create_node() to create NodeWrapper and forward to real RMW (see [[file:implementation-guide.org::*2.1: Update rmw_node.cpp][implementation-guide.org § 2.1]])
+- [ ] Update rmw_destroy_node() to unwrap and forward
+- [ ] Update rmw_node_get_graph_guard_condition() to forward
 
-*** Success Criteria
+*** Publisher Operations
 
-- [X] All header files created and documented
-- [ ] RealRMW loads FastRTPS successfully
-- [ ] Mode detection works correctly
-- [ ] Context creation/destruction works in both modes
-- [ ] All unit tests pass
-- [ ] No memory leaks (verify with valgrind)
+- [ ] Update rmw_create_publisher() to extract metadata, unwrap node, forward, and create PublisherWrapper (see [[file:implementation-guide.org::*2.2: Update rmw_publisher.cpp][implementation-guide.org § 2.2]])
+- [ ] Update rmw_destroy_publisher() to unwrap and forward
+- [ ] Update rmw_publish() to unwrap and forward
+- [ ] Update rmw_publish_serialized_message() to forward
+- [ ] Update rmw_publisher_get_actual_qos() to forward
+- [ ] Update rmw_publisher_count_matched_subscriptions() to forward
+- [ ] Update rmw_publisher_assert_liveliness() to forward
+- [ ] Update rmw_publisher_wait_for_all_acked() to forward
 
-*** Estimated Effort: 27 hours (~3-4 days)
+*** Subscription Operations
 
-** TODO Phase 2: Publishers & Subscriptions [0%]
-DEADLINE: <2025-11-15>
+- [ ] Update rmw_create_subscription() to extract metadata, unwrap node, forward, and create SubscriptionWrapper (see [[file:implementation-guide.org::*2.3: Update rmw_subscription.cpp][implementation-guide.org § 2.3]])
+- [ ] Update rmw_destroy_subscription() to unwrap and forward
+- [ ] Update rmw_take() to unwrap and forward
+- [ ] Update rmw_take_with_info() to forward
+- [ ] Update rmw_take_serialized_message() to forward
+- [ ] Update rmw_take_serialized_message_with_info() to forward
+- [ ] Update rmw_subscription_get_actual_qos() to forward
+- [ ] Update rmw_subscription_count_matched_publishers() to forward
 
-This phase implements forwarding for publisher and subscription operations.
+*** Integration Tests
 
-*** TODO Update rmw_node.cpp [0%]
+- [ ] Test publisher creation, destruction, publish, and QoS queries with FastRTPS
+- [ ] Test subscription creation, destruction, take operations with FastRTPS
+- [ ] Create talker/listener test with message passing through rmw_introspect (see [[file:implementation-guide.org::*2.4: Integration Test: Talker/Listener][implementation-guide.org § 2.4]])
+- [ ] Verify introspection data recorded for all interfaces
+- [ ] Measure and verify latency overhead < 5% vs native RMW
+- [ ] Verify no memory leaks
 
-**** TODO Implement Node Creation Forwarding
-:PROPERTIES:
-:EFFORT: 3h
-:END:
+** Phase 3: Services & Clients
 
-- [ ] Update rmw_create_node() for intermediate mode
-- [ ] Create NodeWrapper
-- [ ] Forward to real RMW
-- [ ] Handle errors
-- [ ] Maintain recording-only mode
+Implement forwarding for service and client operations. See [[file:implementation-guide.org::*Phase 3: Services and Clients][implementation-guide.org § Phase 3]].
 
-**** TODO Implement Node Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+*** Service Operations
 
-- [ ] Update rmw_destroy_node() for intermediate mode
-- [ ] Unwrap node handle
-- [ ] Forward destruction to real RMW
-- [ ] Clean up wrapper
+- [ ] Update rmw_create_service() to extract metadata, unwrap node, forward, and create ServiceWrapper (see [[file:implementation-guide.org::*3.1: Update rmw_service.cpp][implementation-guide.org § 3.1]])
+- [ ] Update rmw_destroy_service() to unwrap and forward
+- [ ] Update rmw_take_request() to unwrap and forward
+- [ ] Update rmw_send_response() to unwrap and forward
+- [ ] Update rmw_service_request_subscription_get_actual_qos() to forward
+- [ ] Update rmw_service_response_publisher_get_actual_qos() to forward
 
-**** TODO Implement Node Guard Condition
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+*** Client Operations
 
-- [ ] Update rmw_node_get_graph_guard_condition()
-- [ ] Forward to real RMW
-- [ ] Return stub in recording-only mode
+- [ ] Update rmw_create_client() to extract metadata, unwrap node, forward, and create ClientWrapper (see [[file:implementation-guide.org::*3.2: Update rmw_client.cpp][implementation-guide.org § 3.2]])
+- [ ] Update rmw_destroy_client() to unwrap and forward
+- [ ] Update rmw_send_request() to unwrap and forward
+- [ ] Update rmw_take_response() to unwrap and forward
+- [ ] Update rmw_client_request_publisher_get_actual_qos() to forward
+- [ ] Update rmw_client_response_subscription_get_actual_qos() to forward
 
-*** TODO Update rmw_publisher.cpp [0%]
+*** Integration Tests
 
-**** TODO Implement Publisher Creation Forwarding
-:PROPERTIES:
-:EFFORT: 4h
-:END:
+- [ ] Test service creation, destruction, and operations with FastRTPS
+- [ ] Test client creation, destruction, and operations with FastRTPS
+- [ ] Create AddTwoInts service/client test with request/response passing (see [[file:implementation-guide.org::*3.3: Integration Test: AddTwoInts][implementation-guide.org § 3.3]])
+- [ ] Verify introspection data recorded for services and clients
+- [ ] Measure and verify latency overhead < 5% vs native RMW
+- [ ] Test timeout handling and multiple requests
 
-- [ ] Update rmw_create_publisher()
-- [ ] Extract and record metadata (preserve existing)
-- [ ] Check mode
-- [ ] Unwrap node handle
-- [ ] Forward to real RMW
-- [ ] Create PublisherWrapper
-- [ ] Return wrapped handle
-- [ ] Handle all error cases
+** Phase 4: Advanced Features
 
-**** TODO Implement Publisher Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+Implement forwarding for wait sets, guard conditions, and graph queries. See [[file:implementation-guide.org::*Phase 4: Advanced Features][implementation-guide.org § Phase 4]].
 
-- [ ] Update rmw_destroy_publisher()
-- [ ] Unwrap handles
-- [ ] Forward to real RMW
-- [ ] Clean up wrapper
+*** Guard Conditions
 
-**** TODO Implement Publish Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
+- [ ] Update rmw_create_guard_condition() to unwrap context, forward, and create GuardConditionWrapper
+- [ ] Update rmw_destroy_guard_condition() to unwrap and forward
+- [ ] Update rmw_trigger_guard_condition() to unwrap and forward
 
-- [ ] Update rmw_publish()
-- [ ] Unwrap publisher handle
-- [ ] Forward to real RMW
-- [ ] Return immediately in recording-only mode
+*** Wait Sets
 
-**** TODO Implement Serialized Publish Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+- [ ] Update rmw_create_wait_set() to unwrap context, forward, and create WaitSetWrapper
+- [ ] Update rmw_destroy_wait_set() to unwrap and forward
+- [ ] Update rmw_wait() to unwrap wait set and all handle arrays, forward, and update ready flags (see [[file:implementation-guide.org::*4.2: Implement rmw_wait Forwarding][implementation-guide.org § 4.2 rmw_wait]])
 
-- [ ] Update rmw_publish_serialized_message()
-- [ ] Unwrap and forward
-- [ ] Handle errors
+*** Graph Queries
 
-**** TODO Implement Publisher QoS Query
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+- [ ] Update rmw_get_node_names() and rmw_get_node_names_with_enclaves() to forward
+- [ ] Update rmw_get_topic_names_and_types() and rmw_get_service_names_and_types() to forward
+- [ ] Update rmw_get_publisher/subscriber/service/client_names_and_types_by_node() to forward
+- [ ] Update rmw_count_publishers/subscribers/clients/services() to forward
+- [ ] Update rmw_get_gid_for_publisher/client() and rmw_compare_gids_equal() to forward
 
-- [ ] Update rmw_publisher_get_actual_qos()
-- [ ] Forward to real RMW
-- [ ] Return cached QoS in recording-only mode
+*** Event Operations
 
-**** TODO Implement Publisher Match Count
-:PROPERTIES:
-:EFFORT: 1h
-:END:
+- [ ] Update rmw_publisher_event_init() to forward
+- [ ] Update rmw_subscription_event_init() to forward
+- [ ] Update rmw_take_event() to forward
+- [ ] Update rmw_event_fini() to forward
 
-- [ ] Update rmw_publisher_count_matched_subscriptions()
-- [ ] Forward to real RMW
-- [ ] Return 0 in recording-only mode
+*** Integration Tests
 
-**** TODO Implement Publisher Liveliness
-:PROPERTIES:
-:EFFORT: 30m
-:END:
-
-- [ ] Update rmw_publisher_assert_liveliness()
-- [ ] Forward to real RMW
-
-**** TODO Implement Publisher Wait for Acked
-:PROPERTIES:
-:EFFORT: 30m
-:END:
-
-- [ ] Update rmw_publisher_wait_for_all_acked()
-- [ ] Forward to real RMW
-
-*** TODO Update rmw_subscription.cpp [0%]
-
-**** TODO Implement Subscription Creation Forwarding
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Update rmw_create_subscription()
-- [ ] Extract and record metadata
-- [ ] Check mode
-- [ ] Unwrap node handle
-- [ ] Forward to real RMW
-- [ ] Create SubscriptionWrapper
-- [ ] Return wrapped handle
-
-**** TODO Implement Subscription Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_destroy_subscription()
-- [ ] Unwrap handles
-- [ ] Forward to real RMW
-- [ ] Clean up wrapper
-
-**** TODO Implement Take Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_take()
-- [ ] Unwrap subscription handle
-- [ ] Forward to real RMW
-- [ ] Set taken=false in recording-only mode
-
-**** TODO Implement Take with Info Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_take_with_info()
-- [ ] Unwrap and forward
-- [ ] Handle message info
-
-**** TODO Implement Serialized Take Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_take_serialized_message()
-- [ ] Unwrap and forward
-
-**** TODO Implement Serialized Take with Info Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_take_serialized_message_with_info()
-- [ ] Unwrap and forward
-
-**** TODO Implement Subscription QoS Query
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_subscription_get_actual_qos()
-- [ ] Forward to real RMW
-- [ ] Return cached QoS in recording-only mode
-
-**** TODO Implement Subscription Match Count
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_subscription_count_matched_publishers()
-- [ ] Forward to real RMW
-
-*** TODO Write Integration Tests [0%]
-
-**** TODO test_publisher_forwarding.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Test publisher creation with FastRTPS
-- [ ] Test publisher destruction
-- [ ] Test publish operation
-- [ ] Test serialized publish
-- [ ] Test QoS query
-- [ ] Test matched subscriptions count
-- [ ] Verify introspection data recorded
-
-**** TODO test_subscription_forwarding.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Test subscription creation with FastRTPS
-- [ ] Test subscription destruction
-- [ ] Test take operation (no message available)
-- [ ] Test take with info
-- [ ] Test serialized take
-- [ ] Test QoS query
-- [ ] Verify introspection data recorded
-
-**** TODO test_talker_listener.cpp
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Create talker node with rmw_introspect
-- [ ] Create listener node with rmw_introspect
-- [ ] Publish messages from talker
-- [ ] Receive messages in listener
-- [ ] Verify message content
-- [ ] Verify introspection data for both nodes
-- [ ] Compare latency with native FastRTPS
-- [ ] Test with different QoS settings
-- [ ] Test with multiple messages
-
-**** TODO test_performance.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Measure publish-to-subscribe latency
-- [ ] Compare with native RMW
-- [ ] Measure throughput (messages/sec)
-- [ ] Measure memory overhead
-- [ ] Generate performance report
-
-*** Success Criteria
-
-- [ ] Talker/listener example works with FastRTPS backend
-- [ ] Messages pass through correctly
-- [ ] Introspection data recorded for all interfaces
-- [ ] Latency overhead < 5% compared to native RMW
-- [ ] No memory leaks
-- [ ] All tests pass
-
-*** Estimated Effort: 46 hours (~6-7 days)
-
-** TODO Phase 3: Services & Clients [0%]
-DEADLINE: <2025-11-25>
-
-This phase implements forwarding for service and client operations.
-
-*** TODO Update rmw_service.cpp [0%]
-
-**** TODO Implement Service Creation Forwarding
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Update rmw_create_service()
-- [ ] Extract and record metadata
-- [ ] Check mode
-- [ ] Unwrap node handle
-- [ ] Forward to real RMW
-- [ ] Create ServiceWrapper
-- [ ] Return wrapped handle
-
-**** TODO Implement Service Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_destroy_service()
-- [ ] Unwrap handles
-- [ ] Forward to real RMW
-- [ ] Clean up wrapper
-
-**** TODO Implement Take Request Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_take_request()
-- [ ] Unwrap service handle
-- [ ] Forward to real RMW
-- [ ] Set taken=false in recording-only mode
-
-**** TODO Implement Send Response Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_send_response()
-- [ ] Unwrap service handle
-- [ ] Forward to real RMW
-- [ ] Return success in recording-only mode
-
-**** TODO Implement Service QoS Queries
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_service_request_subscription_get_actual_qos()
-- [ ] Update rmw_service_response_publisher_get_actual_qos()
-- [ ] Forward to real RMW
-
-*** TODO Update rmw_client.cpp [0%]
-
-**** TODO Implement Client Creation Forwarding
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Update rmw_create_client()
-- [ ] Extract and record metadata
-- [ ] Check mode
-- [ ] Unwrap node handle
-- [ ] Forward to real RMW
-- [ ] Create ClientWrapper
-- [ ] Return wrapped handle
-
-**** TODO Implement Client Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_destroy_client()
-- [ ] Unwrap handles
-- [ ] Forward to real RMW
-- [ ] Clean up wrapper
-
-**** TODO Implement Send Request Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_send_request()
-- [ ] Unwrap client handle
-- [ ] Forward to real RMW
-- [ ] Return dummy sequence_id in recording-only mode
-
-**** TODO Implement Take Response Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_take_response()
-- [ ] Unwrap client handle
-- [ ] Forward to real RMW
-- [ ] Set taken=false in recording-only mode
-
-**** TODO Implement Client QoS Queries
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_client_request_publisher_get_actual_qos()
-- [ ] Update rmw_client_response_subscription_get_actual_qos()
-- [ ] Forward to real RMW
-
-*** TODO Write Integration Tests [0%]
-
-**** TODO test_service_forwarding.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Test service creation with FastRTPS
-- [ ] Test service destruction
-- [ ] Test take request (no request available)
-- [ ] Test send response
-- [ ] Test QoS queries
-- [ ] Verify introspection data recorded
-
-**** TODO test_client_forwarding.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Test client creation with FastRTPS
-- [ ] Test client destruction
-- [ ] Test send request
-- [ ] Test take response (no response available)
-- [ ] Test QoS queries
-- [ ] Verify introspection data recorded
-
-**** TODO test_add_two_ints.cpp
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Create AddTwoInts service with rmw_introspect
-- [ ] Create AddTwoInts client with rmw_introspect
-- [ ] Send request from client
-- [ ] Receive request in service
-- [ ] Send response from service
-- [ ] Receive response in client
-- [ ] Verify correct computation
-- [ ] Verify introspection data
-- [ ] Test with multiple requests
-- [ ] Test timeout handling
-
-**** TODO test_service_performance.cpp
-:PROPERTIES:
-:EFFORT: 3h
-:END:
-
-- [ ] Measure request-response latency
-- [ ] Compare with native RMW
-- [ ] Measure throughput (requests/sec)
-- [ ] Generate performance report
-
-*** Success Criteria
-
-- [ ] AddTwoInts service/client example works
-- [ ] Requests and responses pass through correctly
-- [ ] Introspection data recorded for services and clients
-- [ ] Latency overhead < 5% compared to native RMW
-- [ ] No memory leaks
-- [ ] All tests pass
-
-*** Estimated Effort: 37 hours (~5 days)
-
-** TODO Phase 4: Advanced Features [0%]
-DEADLINE: <2025-12-10>
-
-This phase implements forwarding for advanced features like wait sets,
-guard conditions, and graph queries.
-
-*** TODO Update rmw_guard_condition.cpp [0%]
-
-**** TODO Implement Guard Condition Creation Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_create_guard_condition()
-- [ ] Check mode
-- [ ] Unwrap context
-- [ ] Forward to real RMW
-- [ ] Create GuardConditionWrapper
-- [ ] Return wrapped handle
-
-**** TODO Implement Guard Condition Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_destroy_guard_condition()
-- [ ] Unwrap handle
-- [ ] Forward to real RMW
-- [ ] Clean up wrapper
-
-**** TODO Implement Trigger Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_trigger_guard_condition()
-- [ ] Unwrap handle
-- [ ] Forward to real RMW
-
-*** TODO Update rmw_wait.cpp [0%]
-
-**** TODO Implement Wait Set Creation Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_create_wait_set()
-- [ ] Check mode
-- [ ] Unwrap context
-- [ ] Forward to real RMW
-- [ ] Create WaitSetWrapper
-- [ ] Return wrapped handle
-
-**** TODO Implement Wait Set Destruction Forwarding
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_destroy_wait_set()
-- [ ] Unwrap handle
-- [ ] Forward to real RMW
-- [ ] Clean up wrapper
-
-**** TODO Implement Wait Forwarding
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-This is the most complex function - requires unwrapping arrays of handles.
-
-- [ ] Update rmw_wait()
-- [ ] Check mode
-- [ ] Unwrap wait set
-- [ ] Unwrap all subscription handles in array
-- [ ] Unwrap all guard condition handles in array
-- [ ] Unwrap all service handles in array
-- [ ] Unwrap all client handles in array
-- [ ] Unwrap all event handles in array
-- [ ] Build arrays of real RMW handles
-- [ ] Forward to real RMW
-- [ ] Update original arrays with ready flags
-- [ ] Handle errors
-- [ ] Test thoroughly with various combinations
-
-*** TODO Update rmw_graph.cpp [0%]
-
-**** TODO Implement Node Name Queries
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_get_node_names()
-- [ ] Update rmw_get_node_names_with_enclaves()
-- [ ] Unwrap node
-- [ ] Forward to real RMW
-- [ ] Return empty in recording-only mode
-
-**** TODO Implement Topic Queries
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_get_topic_names_and_types()
-- [ ] Update rmw_get_service_names_and_types()
-- [ ] Forward to real RMW
-
-**** TODO Implement Publisher/Subscriber Queries by Node
-:PROPERTIES:
-:EFFORT: 3h
-:END:
-
-- [ ] Update rmw_get_publisher_names_and_types_by_node()
-- [ ] Update rmw_get_subscriber_names_and_types_by_node()
-- [ ] Update rmw_get_service_names_and_types_by_node()
-- [ ] Update rmw_get_client_names_and_types_by_node()
-- [ ] Forward to real RMW
-
-**** TODO Implement Count Queries
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_count_publishers()
-- [ ] Update rmw_count_subscribers()
-- [ ] Update rmw_count_clients()
-- [ ] Update rmw_count_services()
-- [ ] Forward to real RMW
-
-**** TODO Implement GID Operations
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Update rmw_get_gid_for_publisher()
-- [ ] Update rmw_get_gid_for_client()
-- [ ] Update rmw_compare_gids_equal()
-- [ ] Forward to real RMW
-
-*** TODO Update rmw_event.cpp [0%]
-
-**** TODO Implement Event Operations
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Update rmw_publisher_event_init()
-- [ ] Update rmw_subscription_event_init()
-- [ ] Update rmw_take_event()
-- [ ] Update rmw_event_fini()
-- [ ] Forward to real RMW
-
-*** TODO Write Integration Tests [0%]
-
-**** TODO test_wait_set.cpp
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Test wait set creation/destruction
-- [ ] Test waiting on single subscription
-- [ ] Test waiting on multiple subscriptions
-- [ ] Test waiting with timeout
-- [ ] Test waiting on mixed entities (sub + service + guard)
-- [ ] Test guard condition triggering
-- [ ] Verify correct ready flags
-
-**** TODO test_graph_queries.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Test get_node_names()
-- [ ] Test get_topic_names_and_types()
-- [ ] Test count_publishers()
-- [ ] Test count_subscribers()
-- [ ] Test publisher_names_and_types_by_node()
-- [ ] Compare results with native RMW
-
-**** TODO test_complex_system.cpp
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-- [ ] Create multi-node system with rmw_introspect
-- [ ] Mix of publishers, subscriptions, services, clients
-- [ ] Test all communication paths
-- [ ] Test graph queries on complex system
-- [ ] Test wait with multiple entities
-- [ ] Verify introspection data complete
+- [ ] Test wait set creation/destruction and waiting on single/multiple entities
+- [ ] Test guard condition triggering and wait set integration
+- [ ] Test graph queries and compare with native RMW results
+- [ ] Create complex multi-node system test with mixed entities (see [[file:implementation-guide.org::*4.4: Complex System Test][implementation-guide.org § 4.4]])
 - [ ] Stress test with high message rates
 
-*** Success Criteria
-
-- [ ] Wait sets work correctly with multiple entities
-- [ ] Graph queries return accurate information
-- [ ] Guard conditions can be triggered
-- [ ] Complex multi-node systems work correctly
-- [ ] All tests pass
-- [ ] No memory leaks
-
-*** Estimated Effort: 48 hours (~6-7 days)
-
-** TODO Phase 5: Serialization & Advanced QoS [0%]
-DEADLINE: <2025-12-20>
+** Phase 5: Serialization & Advanced QoS
 
 Optional phase for completeness.
 
-*** TODO Update Serialization Functions [0%]
+*** Serialization
 
-**** TODO Implement Serialize Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
+- [ ] Update rmw_serialize() to forward to real RMW
+- [ ] Update rmw_deserialize() to forward to real RMW
+- [ ] Update rmw_get_serialized_message_size() to forward
 
-- [ ] Update rmw_serialize()
-- [ ] Forward to real RMW
-- [ ] Handle in recording-only mode
+*** Loaned Messages
 
-**** TODO Implement Deserialize Forwarding
-:PROPERTIES:
-:EFFORT: 2h
-:END:
+- [ ] Update rmw_borrow_loaned_message() and rmw_return_loaned_message_from_publisher() to forward
+- [ ] Update rmw_take_loaned_message() and rmw_return_loaned_message_from_subscription() to forward
+- [ ] Handle unsupported case gracefully in recording-only mode
 
-- [ ] Update rmw_deserialize()
-- [ ] Forward to real RMW
-- [ ] Handle in recording-only mode
-
-**** TODO Implement Message Size Query
-:PROPERTIES:
-:EFFORT: 1h
-:END:
-
-- [ ] Update rmw_get_serialized_message_size()
-- [ ] Forward to real RMW
-
-*** TODO Implement Loaned Message Support [0%]
-
-**** TODO Publisher Loaned Messages
-:PROPERTIES:
-:EFFORT: 3h
-:END:
-
-- [ ] Update rmw_borrow_loaned_message()
-- [ ] Update rmw_return_loaned_message_from_publisher()
-- [ ] Forward to real RMW
-- [ ] Return unsupported in recording-only mode
-
-**** TODO Subscription Loaned Messages
-:PROPERTIES:
-:EFFORT: 3h
-:END:
-
-- [ ] Update rmw_take_loaned_message()
-- [ ] Update rmw_return_loaned_message_from_subscription()
-- [ ] Forward to real RMW
-- [ ] Return unsupported in recording-only mode
-
-*** TODO Write Tests [0%]
-
-**** TODO test_serialization.cpp
-:PROPERTIES:
-:EFFORT: 3h
-:END:
+*** Tests
 
 - [ ] Test serialize/deserialize with various message types
-- [ ] Verify correctness
-- [ ] Compare with native RMW
-
-**** TODO test_loaned_messages.cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Test loaned message borrowing (if supported by real RMW)
-- [ ] Test loaned message return
+- [ ] Test loaned messages if supported by backend RMW
 - [ ] Verify proper memory management
 
-*** Success Criteria
-
-- [ ] Serialization functions work correctly
-- [ ] Loaned messages work (if supported by backend)
-- [ ] All tests pass
-
-*** Estimated Effort: 18 hours (~2-3 days)
-
-** TODO Phase 6: Testing & Validation [0%]
-DEADLINE: <2026-01-10>
+** Phase 6: Testing & Validation
 
 Comprehensive testing across multiple RMW implementations and ROS 2 distributions.
 
-*** TODO Compatibility Testing [0%]
+*** Compatibility Testing
 
-**** TODO Test with rmw_fastrtps_cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Run full test suite with FastRTPS backend
-- [ ] Verify all functionality
-- [ ] Benchmark performance
-- [ ] Document any issues
-
-**** TODO Test with rmw_cyclonedds_cpp
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Run full test suite with CycloneDDS backend
-- [ ] Verify all functionality
-- [ ] Benchmark performance
-- [ ] Document any issues
-
-**** TODO Test with rmw_connextdds
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Run full test suite with Connext DDS backend (if available)
-- [ ] Verify all functionality
-- [ ] Document any issues
-
-**** TODO Test on Multiple ROS 2 Distributions
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-- [ ] Test on ROS 2 Humble
-- [ ] Test on ROS 2 Iron
-- [ ] Test on ROS 2 Jazzy
+- [ ] Run full test suite with rmw_fastrtps_cpp backend
+- [ ] Run full test suite with rmw_cyclonedds_cpp backend
+- [ ] Run full test suite with rmw_connextdds backend (if available)
+- [ ] Test on ROS 2 Humble, Iron, and Jazzy
 - [ ] Document compatibility matrix
 
-*** TODO Performance Benchmarking [0%]
+*** Performance Benchmarking
 
-**** TODO Latency Benchmarks
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Measure pub-sub latency across message sizes
-- [ ] Measure service-client latency
-- [ ] Compare with native RMW
-- [ ] Generate latency graphs
-
-**** TODO Throughput Benchmarks
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Measure max publish rate
-- [ ] Measure max service request rate
-- [ ] Compare with native RMW
-- [ ] Generate throughput graphs
-
-**** TODO Memory Benchmarks
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Measure memory overhead per handle
-- [ ] Measure total memory usage
+- [ ] Measure pub-sub latency across message sizes and compare with native RMW
+- [ ] Measure service-client latency and compare with native RMW
+- [ ] Measure max publish rate and service request rate
+- [ ] Measure memory overhead per handle and total usage
+- [ ] Measure dlopen and context initialization overhead
 - [ ] Run with valgrind for leak detection
-- [ ] Generate memory usage report
+- [ ] Generate performance reports and graphs
 
-**** TODO Initialization Benchmarks
-:PROPERTIES:
-:EFFORT: 2h
-:END:
+*** Real-World Testing
 
-- [ ] Measure dlopen overhead
-- [ ] Measure context initialization time
-- [ ] Compare with native RMW and recording-only mode
-- [ ] Document initialization costs
-
-*** TODO Real-World Testing [0%]
-
-**** TODO Test with Complex ROS 2 Applications
-:PROPERTIES:
-:EFFORT: 12h
-:END:
-
-- [ ] Test with Nav2 stack
-- [ ] Test with MoveIt2
-- [ ] Test with perception pipelines
+- [ ] Test with complex ROS 2 applications (Nav2, MoveIt2, perception pipelines)
 - [ ] Test with multi-robot systems
-- [ ] Document any issues or limitations
+- [ ] Run stress tests for extended periods (24+ hours)
+- [ ] Test high-frequency message passing and rapid create/destroy cycles
+- [ ] Check for memory leaks and deadlocks
 
-**** TODO Stress Testing
-:PROPERTIES:
-:EFFORT: 8h
-:END:
+*** Bug Fixes and Refinement
 
-- [ ] Run for extended periods (24+ hours)
-- [ ] High-frequency message passing
-- [ ] Many nodes in single process
-- [ ] Rapid create/destroy cycles
-- [ ] Check for memory leaks
-- [ ] Check for deadlocks
+- [ ] Triage and fix all bugs found in testing
+- [ ] Profile hot paths and optimize critical sections
+- [ ] Reduce allocations and cache frequently-used data
+- [ ] Document known limitations and workarounds
 
-*** TODO Bug Fixes and Refinement [0%]
-
-**** TODO Address Issues Found in Testing
-:PROPERTIES:
-:EFFORT: 16h
-:END:
-
-- [ ] Triage all bugs found
-- [ ] Fix high-priority issues
-- [ ] Document known limitations
-- [ ] Add workarounds where needed
-
-**** TODO Performance Optimization
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-- [ ] Profile hot paths
-- [ ] Optimize critical sections
-- [ ] Reduce allocations
-- [ ] Cache frequently-used data
-
-*** Success Criteria
-
-- [ ] All tests pass with FastRTPS
-- [ ] All tests pass with CycloneDDS
-- [ ] Works on Humble, Iron, and Jazzy
-- [ ] Latency overhead < 5%
-- [ ] Throughput within 95% of native
-- [ ] No memory leaks
-- [ ] No deadlocks or race conditions
-- [ ] Successfully tested with real applications
-
-*** Estimated Effort: 82 hours (~10-12 days)
-
-** TODO Phase 7: Documentation & Release Preparation [0%]
-DEADLINE: <2026-01-25>
+** Phase 7: Documentation & Release Preparation
 
 Prepare for public release.
 
-*** TODO Update Documentation [0%]
+*** Documentation Updates
 
-**** TODO Update README.md
-:PROPERTIES:
-:EFFORT: 4h
-:END:
+- [ ] Update README.md with intermediate layer usage and RMW_INTROSPECT_DELEGATE_TO
+- [ ] Update rmw_introspect_cpp/README.md with architecture changes
+- [ ] Create comprehensive user guide covering both modes
+- [ ] Create developer guide with internal architecture and contributing guidelines
+- [ ] Update design documents with implementation notes and lessons learned
+- [ ] Add Doxygen comments to all public APIs and wrapper structures
+- [ ] Generate HTML API documentation with Doxygen
 
-- [ ] Add intermediate layer usage instructions
-- [ ] Document RMW_INTROSPECT_DELEGATE_TO
-- [ ] Add examples for both modes
-- [ ] Update performance claims
-- [ ] Add compatibility matrix
+*** Examples and Tutorials
 
-**** TODO Update rmw_introspect_cpp/README.md
-:PROPERTIES:
-:EFFORT: 3h
-:END:
+- [ ] Create example programs (talker/listener, service/client, multi-node)
+- [ ] Write getting started tutorial
+- [ ] Write tutorial for using with existing ROS 2 nodes
+- [ ] Write troubleshooting guide
 
-- [ ] Document architecture changes
-- [ ] Explain dlopen mechanism
-- [ ] Document wrapper pattern
-- [ ] Add developer notes
+*** Release Preparation
 
-**** TODO Create User Guide
-:PROPERTIES:
-:EFFORT: 6h
-:END:
+- [ ] Set version to 0.2.0 and update CHANGELOG.md
+- [ ] Tag release and create GitHub release
+- [ ] Verify package.xml and test installation on clean system
+- [ ] Set up GitHub Actions CI/CD for multiple ROS 2 distros
+- [ ] Add test jobs and coverage reporting
 
-- [ ] Write comprehensive user guide
-- [ ] Cover both recording-only and intermediate modes
-- [ ] Add troubleshooting section
-- [ ] Include common use cases
-- [ ] Add FAQ
-
-**** TODO Create Developer Guide
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Document internal architecture
-- [ ] Explain forwarding patterns
-- [ ] Guide for adding new RMW functions
-- [ ] Contributing guidelines
-
-**** TODO Update Design Documents
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Update architecture.org with implementation notes
-- [ ] Update api-design.org with final API
-- [ ] Update implementation-guide.org with lessons learned
-- [ ] Update roadmap.org with completion status
-
-*** TODO API Documentation [0%]
-
-**** TODO Add Doxygen Comments
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-- [ ] Document all public APIs
-- [ ] Document all wrapper structures
-- [ ] Document RealRMW class
-- [ ] Document helper functions
-
-**** TODO Generate API Docs
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Set up Doxygen
-- [ ] Generate HTML documentation
-- [ ] Review and refine
-
-*** TODO Examples and Tutorials [0%]
-
-**** TODO Create Example Programs
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-- [ ] Simple talker/listener with introspection
-- [ ] Service/client with introspection
-- [ ] Multi-node system with introspection
-- [ ] Real-time introspection viewer (optional)
-
-**** TODO Write Tutorials
-:PROPERTIES:
-:EFFORT: 6h
-:END:
-
-- [ ] Getting started tutorial
-- [ ] Using with existing ROS 2 nodes
-- [ ] Interpreting introspection data
-- [ ] Troubleshooting guide
-
-*** TODO Release Preparation [0%]
-
-**** TODO Version Management
-:PROPERTIES:
-:EFFORT: 2h
-:END:
-
-- [ ] Set version to 0.2.0
-- [ ] Update CHANGELOG.md
-- [ ] Tag release
-- [ ] Create GitHub release
-
-**** TODO Package Preparation
-:PROPERTIES:
-:EFFORT: 4h
-:END:
-
-- [ ] Verify package.xml
-- [ ] Test installation process
-- [ ] Test on clean system
-- [ ] Prepare release notes
-
-**** TODO CI/CD Setup
-:PROPERTIES:
-:EFFORT: 8h
-:END:
-
-- [ ] Set up GitHub Actions
-- [ ] Add build jobs for multiple ROS 2 distros
-- [ ] Add test jobs
-- [ ] Add coverage reporting
-- [ ] Add static analysis
-
-*** TODO Community Engagement [0%]
-
-**** TODO Announcement
-:PROPERTIES:
-:EFFORT: 3h
-:END:
+*** Community Engagement
 
 - [ ] Write release announcement
-- [ ] Post to ROS Discourse
-- [ ] Post to GitHub discussions
+- [ ] Post to ROS Discourse and GitHub discussions
 - [ ] Notify ROS-Plan maintainers
+- [ ] Monitor issue tracker and gather feedback
 
-**** TODO Gather Feedback
-:PROPERTIES:
-:EFFORT: Ongoing
-:END:
+* Timeline & Effort Estimates
 
-- [ ] Monitor issue tracker
-- [ ] Respond to questions
-- [ ] Incorporate feedback
-- [ ] Plan future improvements
+| Phase | Description                | Estimated Effort |
+|-------+----------------------------+------------------|
+|     0 | Research & Design          | 2-3 days         |
+|     1 | Core Infrastructure        | 3-4 days         |
+|     2 | Publishers & Subscriptions | 6-7 days         |
+|     3 | Services & Clients         | 5 days           |
+|     4 | Advanced Features          | 6-7 days         |
+|     5 | Serialization & QoS        | 2-3 days         |
+|     6 | Testing & Validation       | 10-12 days       |
+|     7 | Documentation & Release    | 8-10 days        |
+|-------+----------------------------+------------------|
+|       | *TOTAL*                    | *42-56 days*     |
 
-*** Success Criteria
+Target release: End of January 2026
 
-- [ ] All documentation complete and accurate
-- [ ] API documentation generated
-- [ ] Examples work correctly
-- [ ] Release artifacts created
-- [ ] CI/CD pipeline functional
-- [ ] Announcement published
+* Success Criteria
 
-*** Estimated Effort: 64 hours (~8-10 days)
+** Technical Requirements
 
-* Summary
-
-** Total Estimated Effort
-
-| Phase | Description                | Estimated Effort | Status      |
-|-------+----------------------------+------------------+-------------|
-|     0 | Research & Design          | 2-3 days         | DONE        |
-|     1 | Core Infrastructure        | 3-4 days         | TODO        |
-|     2 | Publishers & Subscriptions | 6-7 days         | TODO        |
-|     3 | Services & Clients         | 5 days           | TODO        |
-|     4 | Advanced Features          | 6-7 days         | TODO        |
-|     5 | Serialization & QoS        | 2-3 days         | TODO        |
-|     6 | Testing & Validation       | 10-12 days       | TODO        |
-|     7 | Documentation & Release    | 8-10 days        | TODO        |
-|-------+----------------------------+------------------+-------------|
-|       | *TOTAL*                    | *42-56 days*     | In Progress |
-
-** Timeline
-
-Assuming one full-time developer:
-
-- Start: 2025-10-22 (Phase 0 complete)
-- Phase 1-5 Completion: ~2025-12-20 (Core implementation)
-- Phase 6-7 Completion: ~2026-01-25 (Testing and release)
-- *Target Release: End of January 2026*
-
-With multiple developers or part-time work, timeline may extend.
-
-** Risk Factors
-
-*** High Risk
-- [ ] Compatibility issues with specific RMW implementations
-- [ ] Unforeseen API incompatibilities
-- [ ] Complex wait set unwrapping bugs
-
-*** Medium Risk
-- [ ] Performance overhead exceeds 5% target
-- [ ] Memory leaks in edge cases
-- [ ] Real-world application incompatibilities
-
-*** Low Risk
-- [ ] Documentation scope creep
-- [ ] Minor API changes needed
-- [ ] Testing infrastructure setup
-
-** Mitigation Strategies
-
-1. *Incremental Development*: Test each phase thoroughly before moving on
-2. *Early Integration Testing*: Test with real RMW implementations from Phase 1
-3. *Performance Monitoring*: Benchmark after each phase
-4. *Community Feedback*: Share progress early for feedback
-5. *Fallback Plan*: Recording-only mode remains available if issues arise
-
-** Dependencies
-
-*** External Dependencies
-- ROS 2 distribution (Humble, Iron, Jazzy)
-- At least one real RMW implementation (FastRTPS or CycloneDDS)
-- dlopen/dlsym support (standard on Linux)
-- C++17 compiler
-- CMake 3.5+
-
-*** Internal Dependencies
-- Phase 1 must complete before Phase 2
-- Phases 2-5 can partially overlap (different files)
-- Phase 6 requires Phases 1-5 complete
-- Phase 7 requires Phase 6 complete
-
-** Success Metrics
-
-*** Technical Metrics
 - [ ] All RMW functions forwarded correctly
 - [ ] Latency overhead < 5%
 - [ ] Throughput within 95% of native
@@ -1333,77 +296,53 @@ With multiple developers or part-time work, timeline may extend.
 - [ ] Zero memory leaks (valgrind clean)
 - [ ] Zero known crashes
 
-*** Quality Metrics
+** Quality Requirements
+
 - [ ] Test coverage > 80%
 - [ ] All integration tests pass
 - [ ] Works with 3+ real RMW implementations
 - [ ] Works on 3+ ROS 2 distributions
 - [ ] Documentation complete
 
-*** Adoption Metrics (Post-Release)
-- [ ] Downloads from GitHub
-- [ ] Issues/questions on tracker
-- [ ] Community feedback positive
-- [ ] Used in at least one real project
+* Risk Factors & Mitigation
+
+** High Risk
+
+- [ ] Compatibility issues with specific RMW implementations
+  - *Mitigation*: Test with real RMW implementations from Phase 1
+- [ ] Unforeseen API incompatibilities
+  - *Mitigation*: Incremental development and thorough testing per phase
+- [ ] Complex wait set unwrapping bugs
+  - *Mitigation*: Extensive unit tests and edge case coverage
+
+** Medium Risk
+
+- [ ] Performance overhead exceeds 5% target
+  - *Mitigation*: Profile and optimize after each phase
+- [ ] Memory leaks in edge cases
+  - *Mitigation*: Run valgrind continuously during development
+- [ ] Real-world application incompatibilities
+  - *Mitigation*: Early testing with Nav2/MoveIt2
+
+* Dependencies
+
+** External
+
+- ROS 2 distribution (Humble, Iron, Jazzy)
+- At least one real RMW implementation (FastRTPS or CycloneDDS)
+- dlopen/dlsym support (standard on Linux)
+- C++17 compiler
+- CMake 3.5+
+
+** Internal
+
+- Phase 1 must complete before Phase 2
+- Phases 2-5 can partially overlap (different files)
+- Phase 6 requires Phases 1-5 complete
+- Phase 7 requires Phase 6 complete
 
 * References
 
 - [[file:architecture.org][Architecture Design Document]]
 - [[file:api-design.org][API Design Document]]
 - [[file:implementation-guide.org][Implementation Guide]]
-
-* Appendix: Task Dependencies Graph
-
-#+BEGIN_SRC
-Phase 0 (DONE)
-    |
-    v
-Phase 1 (Core Infrastructure)
-    |
-    +-- Phase 1.1: Headers
-    +-- Phase 1.2: Implementation
-    +-- Phase 1.3: rmw_init updates
-    +-- Phase 1.4: Unit tests
-    |
-    v
-Phase 2 (Pub/Sub)        Phase 3 (Service/Client)
-    |                        |
-    +-- Node forwarding      +-- Service forwarding
-    +-- Publisher            +-- Client forwarding
-    +-- Subscription         +-- Integration tests
-    +-- Integration tests    |
-    |                        |
-    +------------------------+
-                |
-                v
-            Phase 4 (Advanced)
-                |
-                +-- Guard conditions
-                +-- Wait sets
-                +-- Graph queries
-                +-- Integration tests
-                |
-                v
-            Phase 5 (Optional)
-                |
-                +-- Serialization
-                +-- Loaned messages
-                |
-                v
-            Phase 6 (Testing)
-                |
-                +-- Compatibility testing
-                +-- Performance benchmarks
-                +-- Real-world testing
-                +-- Bug fixes
-                |
-                v
-            Phase 7 (Release)
-                |
-                +-- Documentation
-                +-- Examples
-                +-- Release prep
-                |
-                v
-            RELEASE v0.2.0
-#+END_SRC
