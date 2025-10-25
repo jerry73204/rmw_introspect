@@ -109,28 +109,28 @@ Implement forwarding for service and client operations. See [[file:implementatio
 
 *** Service Operations
 
-- [ ] Update rmw_create_service() to extract metadata, unwrap node, forward, and create ServiceWrapper (see [[file:implementation-guide.org::*3.1: Update rmw_service.cpp][implementation-guide.org § 3.1]])
-- [ ] Update rmw_destroy_service() to unwrap and forward
-- [ ] Update rmw_take_request() to unwrap and forward
-- [ ] Update rmw_send_response() to unwrap and forward
-- [ ] Update rmw_service_request_subscription_get_actual_qos() to forward
-- [ ] Update rmw_service_response_publisher_get_actual_qos() to forward
+- [X] Update rmw_create_service() to extract metadata, unwrap node, forward, and create ServiceWrapper (see [[file:implementation-guide.org::*3.1: Update rmw_service.cpp][implementation-guide.org § 3.1]])
+- [X] Update rmw_destroy_service() to unwrap and forward
+- [X] Update rmw_take_request() to unwrap and forward
+- [X] Update rmw_send_response() to unwrap and forward
+- [X] Update rmw_service_request_subscription_get_actual_qos() to forward
+- [X] Update rmw_service_response_publisher_get_actual_qos() to forward
 
 *** Client Operations
 
-- [ ] Update rmw_create_client() to extract metadata, unwrap node, forward, and create ClientWrapper (see [[file:implementation-guide.org::*3.2: Update rmw_client.cpp][implementation-guide.org § 3.2]])
-- [ ] Update rmw_destroy_client() to unwrap and forward
-- [ ] Update rmw_send_request() to unwrap and forward
-- [ ] Update rmw_take_response() to unwrap and forward
-- [ ] Update rmw_client_request_publisher_get_actual_qos() to forward
-- [ ] Update rmw_client_response_subscription_get_actual_qos() to forward
+- [X] Update rmw_create_client() to extract metadata, unwrap node, forward, and create ClientWrapper (see [[file:implementation-guide.org::*3.2: Update rmw_client.cpp][implementation-guide.org § 3.2]])
+- [X] Update rmw_destroy_client() to unwrap and forward
+- [X] Update rmw_send_request() to unwrap and forward
+- [X] Update rmw_take_response() to unwrap and forward
+- [X] Update rmw_client_request_publisher_get_actual_qos() to forward
+- [X] Update rmw_client_response_subscription_get_actual_qos() to forward
 
 *** Integration Tests
 
-- [ ] Test service creation, destruction, and operations with FastRTPS
-- [ ] Test client creation, destruction, and operations with FastRTPS
-- [ ] Create AddTwoInts service/client test with request/response passing (see [[file:implementation-guide.org::*3.3: Integration Test: AddTwoInts][implementation-guide.org § 3.3]])
-- [ ] Verify introspection data recorded for services and clients
+- [X] Test service creation, destruction, and operations with FastRTPS
+- [X] Test client creation, destruction, and operations with FastRTPS
+- [X] Create AddTwoInts service/client test with request/response passing (see [[file:implementation-guide.org::*3.3: Integration Test: AddTwoInts][implementation-guide.org § 3.3]])
+- [X] Verify introspection data recorded for services and clients
 - [ ] Measure and verify latency overhead < 5% vs native RMW
 - [ ] Test timeout handling and multiple requests
 
