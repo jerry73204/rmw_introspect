@@ -138,6 +138,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_publisher_subscriber_intermediate test/test_publisher_subscriber_intermediate.cpp)
   target_link_libraries(test_publisher_subscriber_intermediate ${PROJECT_NAME})
   ament_target_dependencies(test_publisher_subscriber_intermediate rcutils rmw std_msgs rosidl_typesupport_cpp)
+
+  # Phase 3 tests: Services & Clients
+  ament_add_gtest(test_service_client_intermediate test/test_service_client_intermediate.cpp)
+  target_link_libraries(test_service_client_intermediate ${PROJECT_NAME})
+  ament_target_dependencies(test_service_client_intermediate rcutils rmw std_srvs rosidl_typesupport_cpp)
 endif()
 
 ament_package()
