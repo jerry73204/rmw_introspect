@@ -260,39 +260,84 @@ rmw_ret_t rmw_take_serialized_message_with_info(
   return RMW_RET_OK;
 }
 
-// Take loaned message (unsupported)
+// Take loaned message
 RMW_INTROSPECT_PUBLIC
 rmw_ret_t rmw_take_loaned_message(const rmw_subscription_t *subscription,
                                   void **loaned_message, bool *taken,
                                   rmw_subscription_allocation_t *allocation) {
-  (void)subscription;
-  (void)loaned_message;
-  (void)taken;
-  (void)allocation;
+  using namespace rmw_introspect::internal;
+
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(loaned_message, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(taken, RMW_RET_INVALID_ARGUMENT);
+
+  // Intermediate mode: forward to real RMW
+  if (is_intermediate_mode()) {
+    rmw_subscription_t *real_subscription = unwrap_subscription(subscription);
+    if (!real_subscription) {
+      RMW_SET_ERROR_MSG("failed to unwrap subscription");
+      return RMW_RET_ERROR;
+    }
+    return g_real_rmw->take_loaned_message(real_subscription, loaned_message,
+                                           taken, allocation);
+  }
+
+  // Recording-only mode: not supported
+  *taken = false;
   return RMW_RET_UNSUPPORTED;
 }
 
-// Take loaned message with info (unsupported)
+// Take loaned message with info
 RMW_INTROSPECT_PUBLIC
 rmw_ret_t
 rmw_take_loaned_message_with_info(const rmw_subscription_t *subscription,
                                   void **loaned_message, bool *taken,
                                   rmw_message_info_t *message_info,
                                   rmw_subscription_allocation_t *allocation) {
-  (void)subscription;
-  (void)loaned_message;
-  (void)taken;
-  (void)message_info;
-  (void)allocation;
+  using namespace rmw_introspect::internal;
+
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(loaned_message, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(taken, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(message_info, RMW_RET_INVALID_ARGUMENT);
+
+  // Intermediate mode: forward to real RMW
+  if (is_intermediate_mode()) {
+    rmw_subscription_t *real_subscription = unwrap_subscription(subscription);
+    if (!real_subscription) {
+      RMW_SET_ERROR_MSG("failed to unwrap subscription");
+      return RMW_RET_ERROR;
+    }
+    return g_real_rmw->take_loaned_message_with_info(
+        real_subscription, loaned_message, taken, message_info, allocation);
+  }
+
+  // Recording-only mode: not supported
+  *taken = false;
   return RMW_RET_UNSUPPORTED;
 }
 
-// Return loaned message (unsupported)
+// Return loaned message
 RMW_INTROSPECT_PUBLIC
 rmw_ret_t rmw_return_loaned_message_from_subscription(
     const rmw_subscription_t *subscription, void *loaned_message) {
-  (void)subscription;
-  (void)loaned_message;
+  using namespace rmw_introspect::internal;
+
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(subscription, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(loaned_message, RMW_RET_INVALID_ARGUMENT);
+
+  // Intermediate mode: forward to real RMW
+  if (is_intermediate_mode()) {
+    rmw_subscription_t *real_subscription = unwrap_subscription(subscription);
+    if (!real_subscription) {
+      RMW_SET_ERROR_MSG("failed to unwrap subscription");
+      return RMW_RET_ERROR;
+    }
+    return g_real_rmw->return_loaned_message_from_subscription(
+        real_subscription, loaned_message);
+  }
+
+  // Recording-only mode: not supported
   return RMW_RET_UNSUPPORTED;
 }
 

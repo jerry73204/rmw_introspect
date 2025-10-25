@@ -148,6 +148,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_advanced_intermediate test/test_advanced_intermediate.cpp)
   target_link_libraries(test_advanced_intermediate ${PROJECT_NAME})
   ament_target_dependencies(test_advanced_intermediate rcutils rmw std_msgs rosidl_typesupport_cpp)
+
+  # Phase 5 tests: Serialization & Advanced QoS
+  ament_add_gtest(test_serialization_intermediate test/test_serialization_intermediate.cpp)
+  target_link_libraries(test_serialization_intermediate ${PROJECT_NAME})
+  ament_target_dependencies(test_serialization_intermediate rcutils rmw test_msgs rosidl_typesupport_cpp)
 endif()
 
 ament_package()

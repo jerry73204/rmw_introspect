@@ -199,9 +199,24 @@ rmw_ret_t
 rmw_borrow_loaned_message(const rmw_publisher_t *publisher,
                           const rosidl_message_type_support_t *type_support,
                           void **ros_message) {
-  (void)publisher;
-  (void)type_support;
-  (void)ros_message;
+  using namespace rmw_introspect::internal;
+
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(type_support, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(ros_message, RMW_RET_INVALID_ARGUMENT);
+
+  // Intermediate mode: forward to real RMW
+  if (is_intermediate_mode()) {
+    rmw_publisher_t *real_publisher = unwrap_publisher(publisher);
+    if (!real_publisher) {
+      RMW_SET_ERROR_MSG("failed to unwrap publisher");
+      return RMW_RET_ERROR;
+    }
+    return g_real_rmw->borrow_loaned_message(real_publisher, type_support,
+                                             ros_message);
+  }
+
+  // Recording-only mode: not supported
   return RMW_RET_UNSUPPORTED;
 }
 
@@ -210,8 +225,23 @@ RMW_INTROSPECT_PUBLIC
 rmw_ret_t
 rmw_return_loaned_message_from_publisher(const rmw_publisher_t *publisher,
                                          void *loaned_message) {
-  (void)publisher;
-  (void)loaned_message;
+  using namespace rmw_introspect::internal;
+
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(publisher, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(loaned_message, RMW_RET_INVALID_ARGUMENT);
+
+  // Intermediate mode: forward to real RMW
+  if (is_intermediate_mode()) {
+    rmw_publisher_t *real_publisher = unwrap_publisher(publisher);
+    if (!real_publisher) {
+      RMW_SET_ERROR_MSG("failed to unwrap publisher");
+      return RMW_RET_ERROR;
+    }
+    return g_real_rmw->return_loaned_message_from_publisher(real_publisher,
+                                                            loaned_message);
+  }
+
+  // Recording-only mode: not supported
   return RMW_RET_UNSUPPORTED;
 }
 
