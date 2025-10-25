@@ -179,21 +179,21 @@ Optional phase for completeness.
 
 *** Serialization
 
-- [ ] Update rmw_serialize() to forward to real RMW
-- [ ] Update rmw_deserialize() to forward to real RMW
-- [ ] Update rmw_get_serialized_message_size() to forward
+- [X] Update rmw_serialize() to forward to real RMW
+- [X] Update rmw_deserialize() to forward to real RMW
+- [X] Update rmw_get_serialized_message_size() to forward
 
 *** Loaned Messages
 
-- [ ] Update rmw_borrow_loaned_message() and rmw_return_loaned_message_from_publisher() to forward
-- [ ] Update rmw_take_loaned_message() and rmw_return_loaned_message_from_subscription() to forward
-- [ ] Handle unsupported case gracefully in recording-only mode
+- [X] Update rmw_borrow_loaned_message() and rmw_return_loaned_message_from_publisher() to forward
+- [X] Update rmw_take_loaned_message() and rmw_return_loaned_message_from_subscription() to forward
+- [X] Handle unsupported case gracefully in recording-only mode
 
 *** Tests
 
-- [ ] Test serialize/deserialize with various message types
-- [ ] Test loaned messages if supported by backend RMW
-- [ ] Verify proper memory management
+- [X] Test serialize/deserialize with various message types
+- [X] Test loaned messages if supported by backend RMW
+- [X] Verify proper memory management
 
 ** Phase 6: Testing & Validation
 
