@@ -1,58 +1,54 @@
-#include "rmw/rmw.h"
+#include "rcutils/logging_macros.h"
+#include "rcutils/macros.h"
+#include "rcutils/types/rcutils_ret.h"
 #include "rmw/error_handling.h"
 #include "rmw/init.h"
 #include "rmw/init_options.h"
-#include "rcutils/macros.h"
-#include "rcutils/types/rcutils_ret.h"
-#include "rcutils/logging_macros.h"
-#include "rmw_introspect/identifier.hpp"
-#include "rmw_introspect/visibility_control.h"
+#include "rmw/rmw.h"
 #include "rmw_introspect/data.hpp"
-#include "rmw_introspect/real_rmw.hpp"
-#include "rmw_introspect/wrappers.hpp"
+#include "rmw_introspect/identifier.hpp"
 #include "rmw_introspect/mode.hpp"
-#include <cstdlib>
-#include <string>
-#include <mutex>
+#include "rmw_introspect/real_rmw.hpp"
+#include "rmw_introspect/visibility_control.h"
+#include "rmw_introspect/wrappers.hpp"
 #include <atomic>
+#include <cstdlib>
+#include <mutex>
+#include <string>
 
 // Define the identifier symbol (declared in identifier.hpp)
-extern "C" const char * const rmw_introspect_cpp_identifier = "rmw_introspect_cpp";
+extern "C" const char *const rmw_introspect_cpp_identifier =
+    "rmw_introspect_cpp";
 
 // Global state for intermediate layer mode
 namespace rmw_introspect {
 namespace internal {
 
-RealRMW* g_real_rmw = nullptr;
+RealRMW *g_real_rmw = nullptr;
 std::mutex g_init_mutex;
 std::atomic<size_t> g_context_count{0};
 
-}  // namespace internal
-}  // namespace rmw_introspect
+} // namespace internal
+} // namespace rmw_introspect
 
-extern "C"
-{
+extern "C" {
 
 // Implementation identifier
 RMW_INTROSPECT_PUBLIC
-const char * rmw_get_implementation_identifier(void)
-{
+const char *rmw_get_implementation_identifier(void) {
   return rmw_introspect_cpp_identifier;
 }
 
 // Serialization format
 RMW_INTROSPECT_PUBLIC
-const char * rmw_get_serialization_format(void)
-{
-  return "introspect";  // Not actually used
+const char *rmw_get_serialization_format(void) {
+  return "introspect"; // Not actually used
 }
 
 // Initialize init options
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_init_options_init(
-  rmw_init_options_t * init_options,
-  rcutils_allocator_t allocator)
-{
+rmw_ret_t rmw_init_options_init(rmw_init_options_t *init_options,
+                                rcutils_allocator_t allocator) {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(init_options, RMW_RET_INVALID_ARGUMENT);
   RCUTILS_CHECK_ALLOCATOR(&allocator, return RMW_RET_INVALID_ARGUMENT);
 
@@ -64,7 +60,7 @@ rmw_ret_t rmw_init_options_init(
   init_options->instance_id = 0;
   init_options->implementation_identifier = rmw_introspect_cpp_identifier;
   init_options->allocator = allocator;
-  init_options->impl = nullptr;  // No implementation-specific data needed
+  init_options->impl = nullptr; // No implementation-specific data needed
   init_options->enclave = nullptr;
   init_options->domain_id = RMW_DEFAULT_DOMAIN_ID;
   init_options->security_options = rmw_get_zero_initialized_security_options();
@@ -75,10 +71,8 @@ rmw_ret_t rmw_init_options_init(
 
 // Copy init options
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_init_options_copy(
-  const rmw_init_options_t * src,
-  rmw_init_options_t * dst)
-{
+rmw_ret_t rmw_init_options_copy(const rmw_init_options_t *src,
+                                rmw_init_options_t *dst) {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(src, RMW_RET_INVALID_ARGUMENT);
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(dst, RMW_RET_INVALID_ARGUMENT);
 
@@ -98,11 +92,11 @@ rmw_ret_t rmw_init_options_copy(
 
 // Finalize init options
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_init_options_fini(rmw_init_options_t * init_options)
-{
+rmw_ret_t rmw_init_options_fini(rmw_init_options_t *init_options) {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(init_options, RMW_RET_INVALID_ARGUMENT);
 
-  if (init_options->implementation_identifier != rmw_introspect_cpp_identifier) {
+  if (init_options->implementation_identifier !=
+      rmw_introspect_cpp_identifier) {
     RMW_SET_ERROR_MSG("expected init_options to be initialized");
     return RMW_RET_INCORRECT_RMW_IMPLEMENTATION;
   }
@@ -113,10 +107,7 @@ rmw_ret_t rmw_init_options_fini(rmw_init_options_t * init_options)
 
 // Initialize RMW
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_init(
-  const rmw_init_options_t * options,
-  rmw_context_t * context)
-{
+rmw_ret_t rmw_init(const rmw_init_options_t *options, rmw_context_t *context) {
   using namespace rmw_introspect::internal;
 
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(options, RMW_RET_INVALID_ARGUMENT);
@@ -131,14 +122,17 @@ rmw_ret_t rmw_init(
 
   // First initialization? Check if we should load real RMW
   if (g_context_count == 0) {
-    const char* delegate_to = std::getenv("RMW_INTROSPECT_DELEGATE_TO");
+    const char *delegate_to = std::getenv("RMW_INTROSPECT_DELEGATE_TO");
     if (delegate_to && *delegate_to) {
       // Verbose logging
-      const char* verbose_env = std::getenv("RMW_INTROSPECT_VERBOSE");
-      bool verbose = verbose_env && (*verbose_env == '1' || *verbose_env == 't' || *verbose_env == 'T');
+      const char *verbose_env = std::getenv("RMW_INTROSPECT_VERBOSE");
+      bool verbose =
+          verbose_env &&
+          (*verbose_env == '1' || *verbose_env == 't' || *verbose_env == 'T');
 
       if (verbose) {
-        RCUTILS_LOG_INFO_NAMED("rmw_introspect", "Attempting to load real RMW: %s", delegate_to);
+        RCUTILS_LOG_INFO_NAMED("rmw_introspect",
+                               "Attempting to load real RMW: %s", delegate_to);
       }
 
       g_real_rmw = new rmw_introspect::RealRMW;
@@ -149,7 +143,8 @@ rmw_ret_t rmw_init(
       }
 
       if (verbose) {
-        RCUTILS_LOG_INFO_NAMED("rmw_introspect", "Real RMW loaded successfully: %s", delegate_to);
+        RCUTILS_LOG_INFO_NAMED("rmw_introspect",
+                               "Real RMW loaded successfully: %s", delegate_to);
       }
     }
   }
@@ -159,7 +154,7 @@ rmw_ret_t rmw_init(
   // Intermediate mode: forward to real RMW
   if (is_intermediate_mode()) {
     // Create wrapper
-    auto* wrapper = new rmw_introspect::ContextWrapper;
+    auto *wrapper = new rmw_introspect::ContextWrapper;
     wrapper->real_rmw = g_real_rmw;
     wrapper->real_rmw_name = g_real_rmw->get_name();
     wrapper->real_context = new rmw_context_t;
@@ -167,7 +162,8 @@ rmw_ret_t rmw_init(
 
     // Create real init options with correct identifier
     rmw_init_options_t real_options = *options;
-    real_options.implementation_identifier = g_real_rmw->get_implementation_identifier();
+    real_options.implementation_identifier =
+        g_real_rmw->get_implementation_identifier();
 
     // Forward to real RMW
     rmw_ret_t ret = g_real_rmw->init(&real_options, wrapper->real_context);
@@ -198,8 +194,7 @@ rmw_ret_t rmw_init(
 
 // Shutdown RMW
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_shutdown(rmw_context_t * context)
-{
+rmw_ret_t rmw_shutdown(rmw_context_t *context) {
   using namespace rmw_introspect::internal;
 
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(context, RMW_RET_INVALID_ARGUMENT);
@@ -210,15 +205,15 @@ rmw_ret_t rmw_shutdown(rmw_context_t * context)
   }
 
   // Check if auto-export is enabled
-  const char * auto_export_env = std::getenv("RMW_INTROSPECT_AUTO_EXPORT");
-  bool auto_export = true;  // Default to enabled
+  const char *auto_export_env = std::getenv("RMW_INTROSPECT_AUTO_EXPORT");
+  bool auto_export = true; // Default to enabled
   if (auto_export_env && std::string(auto_export_env) == "0") {
     auto_export = false;
   }
 
   // Export introspection data if enabled
   if (auto_export) {
-    const char * output_path = std::getenv("RMW_INTROSPECT_OUTPUT");
+    const char *output_path = std::getenv("RMW_INTROSPECT_OUTPUT");
     if (output_path) {
       rmw_introspect::IntrospectionData::instance().export_to_json(output_path);
     }
@@ -226,7 +221,8 @@ rmw_ret_t rmw_shutdown(rmw_context_t * context)
 
   // If in intermediate mode, forward shutdown to real RMW
   if (is_intermediate_mode() && context->impl) {
-    auto* wrapper = static_cast<rmw_introspect::ContextWrapper*>(context->impl);
+    auto *wrapper =
+        static_cast<rmw_introspect::ContextWrapper *>(context->impl);
     if (wrapper->real_context) {
       return g_real_rmw->shutdown(wrapper->real_context);
     }
@@ -237,8 +233,7 @@ rmw_ret_t rmw_shutdown(rmw_context_t * context)
 
 // Finalize context
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_context_fini(rmw_context_t * context)
-{
+rmw_ret_t rmw_context_fini(rmw_context_t *context) {
   using namespace rmw_introspect::internal;
 
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(context, RMW_RET_INVALID_ARGUMENT);
@@ -252,7 +247,8 @@ rmw_ret_t rmw_context_fini(rmw_context_t * context)
 
   // If in intermediate mode, clean up wrapper and forward to real RMW
   if (is_intermediate_mode() && context->impl) {
-    auto* wrapper = static_cast<rmw_introspect::ContextWrapper*>(context->impl);
+    auto *wrapper =
+        static_cast<rmw_introspect::ContextWrapper *>(context->impl);
     if (wrapper->real_context) {
       rmw_ret_t ret = g_real_rmw->context_fini(wrapper->real_context);
       delete wrapper->real_context;
@@ -275,4 +271,4 @@ rmw_ret_t rmw_context_fini(rmw_context_t * context)
   return RMW_RET_OK;
 }
 
-}  // extern "C"
+} // extern "C"

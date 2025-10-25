@@ -8,19 +8,15 @@ class RealRMW;
 namespace internal {
 
 // Global state - initialized in rmw_init.cpp
-extern RealRMW* g_real_rmw;
+extern RealRMW *g_real_rmw;
 
 /// Check if running in intermediate layer mode (forwarding to real RMW)
-inline bool is_intermediate_mode() {
-  return g_real_rmw != nullptr;
-}
+inline bool is_intermediate_mode() { return g_real_rmw != nullptr; }
 
 /// Check if running in recording-only mode (no real RMW)
-inline bool is_recording_only_mode() {
-  return g_real_rmw == nullptr;
-}
+inline bool is_recording_only_mode() { return g_real_rmw == nullptr; }
 
-}  // namespace internal
-}  // namespace rmw_introspect
+} // namespace internal
+} // namespace rmw_introspect
 
-#endif  // RMW_INTROSPECT__MODE_HPP_
+#endif // RMW_INTROSPECT__MODE_HPP_

@@ -1,30 +1,27 @@
-#include "rmw/rmw.h"
+#include "rcutils/macros.h"
 #include "rmw/error_handling.h"
 #include "rmw/impl/cpp/macros.hpp"
-#include "rcutils/macros.h"
+#include "rmw/rmw.h"
 #include "rmw_introspect/identifier.hpp"
 #include "rmw_introspect/visibility_control.h"
 #include <new>
 
-extern "C"
-{
+extern "C" {
 
 // Create wait set
 RMW_INTROSPECT_PUBLIC
-rmw_wait_set_t * rmw_create_wait_set(rmw_context_t * context, size_t max_conditions)
-{
+rmw_wait_set_t *rmw_create_wait_set(rmw_context_t *context,
+                                    size_t max_conditions) {
   (void)max_conditions;
 
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(context, nullptr);
 
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    context,
-    context->implementation_identifier,
-    rmw_introspect_cpp_identifier,
-    return nullptr);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(context, context->implementation_identifier,
+                                   rmw_introspect_cpp_identifier,
+                                   return nullptr);
 
   // Allocate wait set structure
-  rmw_wait_set_t * wait_set = new (std::nothrow) rmw_wait_set_t;
+  rmw_wait_set_t *wait_set = new (std::nothrow) rmw_wait_set_t;
   if (!wait_set) {
     RMW_SET_ERROR_MSG("failed to allocate wait set");
     return nullptr;
@@ -38,14 +35,12 @@ rmw_wait_set_t * rmw_create_wait_set(rmw_context_t * context, size_t max_conditi
 
 // Destroy wait set
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_destroy_wait_set(rmw_wait_set_t * wait_set)
-{
+rmw_ret_t rmw_destroy_wait_set(rmw_wait_set_t *wait_set) {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(wait_set, RMW_RET_INVALID_ARGUMENT);
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    wait_set,
-    wait_set->implementation_identifier,
-    rmw_introspect_cpp_identifier,
-    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(wait_set,
+                                   wait_set->implementation_identifier,
+                                   rmw_introspect_cpp_identifier,
+                                   return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
   delete wait_set;
   return RMW_RET_OK;
@@ -53,15 +48,11 @@ rmw_ret_t rmw_destroy_wait_set(rmw_wait_set_t * wait_set)
 
 // Wait - CRITICAL: Return timeout immediately to allow graceful shutdown
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_wait(
-  rmw_subscriptions_t * subscriptions,
-  rmw_guard_conditions_t * guard_conditions,
-  rmw_services_t * services,
-  rmw_clients_t * clients,
-  rmw_events_t * events,
-  rmw_wait_set_t * wait_set,
-  const rmw_time_t * wait_timeout)
-{
+rmw_ret_t rmw_wait(rmw_subscriptions_t *subscriptions,
+                   rmw_guard_conditions_t *guard_conditions,
+                   rmw_services_t *services, rmw_clients_t *clients,
+                   rmw_events_t *events, rmw_wait_set_t *wait_set,
+                   const rmw_time_t *wait_timeout) {
   (void)subscriptions;
   (void)guard_conditions;
   (void)services;
@@ -77,18 +68,16 @@ rmw_ret_t rmw_wait(
 
 // Create guard condition
 RMW_INTROSPECT_PUBLIC
-rmw_guard_condition_t * rmw_create_guard_condition(rmw_context_t * context)
-{
+rmw_guard_condition_t *rmw_create_guard_condition(rmw_context_t *context) {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(context, nullptr);
 
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    context,
-    context->implementation_identifier,
-    rmw_introspect_cpp_identifier,
-    return nullptr);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(context, context->implementation_identifier,
+                                   rmw_introspect_cpp_identifier,
+                                   return nullptr);
 
   // Allocate guard condition structure
-  rmw_guard_condition_t * guard_condition = new (std::nothrow) rmw_guard_condition_t;
+  rmw_guard_condition_t *guard_condition =
+      new (std::nothrow) rmw_guard_condition_t;
   if (!guard_condition) {
     RMW_SET_ERROR_MSG("failed to allocate guard condition");
     return nullptr;
@@ -103,14 +92,12 @@ rmw_guard_condition_t * rmw_create_guard_condition(rmw_context_t * context)
 
 // Destroy guard condition
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_destroy_guard_condition(rmw_guard_condition_t * guard_condition)
-{
+rmw_ret_t rmw_destroy_guard_condition(rmw_guard_condition_t *guard_condition) {
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(guard_condition, RMW_RET_INVALID_ARGUMENT);
-  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(
-    guard_condition,
-    guard_condition->implementation_identifier,
-    rmw_introspect_cpp_identifier,
-    return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
+  RMW_CHECK_TYPE_IDENTIFIERS_MATCH(guard_condition,
+                                   guard_condition->implementation_identifier,
+                                   rmw_introspect_cpp_identifier,
+                                   return RMW_RET_INCORRECT_RMW_IMPLEMENTATION);
 
   delete guard_condition;
   return RMW_RET_OK;
@@ -118,10 +105,10 @@ rmw_ret_t rmw_destroy_guard_condition(rmw_guard_condition_t * guard_condition)
 
 // Trigger guard condition (no-op)
 RMW_INTROSPECT_PUBLIC
-rmw_ret_t rmw_trigger_guard_condition(const rmw_guard_condition_t * guard_condition)
-{
+rmw_ret_t
+rmw_trigger_guard_condition(const rmw_guard_condition_t *guard_condition) {
   (void)guard_condition;
   return RMW_RET_OK;
 }
 
-}  // extern "C"
+} // extern "C"

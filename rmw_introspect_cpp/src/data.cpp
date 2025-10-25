@@ -1,53 +1,52 @@
 #include "rmw_introspect/data.hpp"
-#include <fstream>
 #include <chrono>
-#include <sstream>
+#include <fstream>
 #include <iomanip>
+#include <sstream>
 
 namespace rmw_introspect {
 
 // QoSProfile implementation
-QoSProfile QoSProfile::from_rmw(const rmw_qos_profile_t & qos)
-{
+QoSProfile QoSProfile::from_rmw(const rmw_qos_profile_t &qos) {
   QoSProfile profile;
 
   // Reliability
   switch (qos.reliability) {
-    case RMW_QOS_POLICY_RELIABILITY_RELIABLE:
-      profile.reliability = "reliable";
-      break;
-    case RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT:
-      profile.reliability = "best_effort";
-      break;
-    default:
-      profile.reliability = "unknown";
-      break;
+  case RMW_QOS_POLICY_RELIABILITY_RELIABLE:
+    profile.reliability = "reliable";
+    break;
+  case RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT:
+    profile.reliability = "best_effort";
+    break;
+  default:
+    profile.reliability = "unknown";
+    break;
   }
 
   // Durability
   switch (qos.durability) {
-    case RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL:
-      profile.durability = "transient_local";
-      break;
-    case RMW_QOS_POLICY_DURABILITY_VOLATILE:
-      profile.durability = "volatile";
-      break;
-    default:
-      profile.durability = "unknown";
-      break;
+  case RMW_QOS_POLICY_DURABILITY_TRANSIENT_LOCAL:
+    profile.durability = "transient_local";
+    break;
+  case RMW_QOS_POLICY_DURABILITY_VOLATILE:
+    profile.durability = "volatile";
+    break;
+  default:
+    profile.durability = "unknown";
+    break;
   }
 
   // History
   switch (qos.history) {
-    case RMW_QOS_POLICY_HISTORY_KEEP_LAST:
-      profile.history = "keep_last";
-      break;
-    case RMW_QOS_POLICY_HISTORY_KEEP_ALL:
-      profile.history = "keep_all";
-      break;
-    default:
-      profile.history = "unknown";
-      break;
+  case RMW_QOS_POLICY_HISTORY_KEEP_LAST:
+    profile.history = "keep_last";
+    break;
+  case RMW_QOS_POLICY_HISTORY_KEEP_ALL:
+    profile.history = "keep_all";
+    break;
+  default:
+    profile.history = "unknown";
+    break;
   }
 
   profile.depth = static_cast<uint32_t>(qos.depth);
@@ -56,44 +55,38 @@ QoSProfile QoSProfile::from_rmw(const rmw_qos_profile_t & qos)
 }
 
 // IntrospectionData implementation
-IntrospectionData & IntrospectionData::instance()
-{
+IntrospectionData &IntrospectionData::instance() {
   static IntrospectionData instance;
   return instance;
 }
 
-void IntrospectionData::record_node(const std::string & name, const std::string & ns)
-{
+void IntrospectionData::record_node(const std::string &name,
+                                    const std::string &ns) {
   std::lock_guard<std::mutex> lock(mutex_);
   nodes_.push_back(ns + "/" + name);
 }
 
-void IntrospectionData::record_publisher(const PublisherInfo & info)
-{
+void IntrospectionData::record_publisher(const PublisherInfo &info) {
   std::lock_guard<std::mutex> lock(mutex_);
   publishers_.push_back(info);
 }
 
-void IntrospectionData::record_subscription(const SubscriptionInfo & info)
-{
+void IntrospectionData::record_subscription(const SubscriptionInfo &info) {
   std::lock_guard<std::mutex> lock(mutex_);
   subscriptions_.push_back(info);
 }
 
-void IntrospectionData::record_service(const ServiceInfo & info)
-{
+void IntrospectionData::record_service(const ServiceInfo &info) {
   std::lock_guard<std::mutex> lock(mutex_);
   services_.push_back(info);
 }
 
-void IntrospectionData::record_client(const ClientInfo & info)
-{
+void IntrospectionData::record_client(const ClientInfo &info) {
   std::lock_guard<std::mutex> lock(mutex_);
   clients_.push_back(info);
 }
 
-void IntrospectionData::clear()
-{
+void IntrospectionData::clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   nodes_.clear();
   publishers_.clear();
@@ -102,8 +95,7 @@ void IntrospectionData::clear()
   clients_.clear();
 }
 
-void IntrospectionData::export_to_json(const std::string & path)
-{
+void IntrospectionData::export_to_json(const std::string &path) {
   std::lock_guard<std::mutex> lock(mutex_);
   std::ofstream file(path);
 
@@ -136,7 +128,7 @@ void IntrospectionData::export_to_json(const std::string & path)
   // Publishers
   file << "  \"publishers\": [\n";
   for (size_t i = 0; i < publishers_.size(); ++i) {
-    const auto & pub = publishers_[i];
+    const auto &pub = publishers_[i];
     file << "    {\n";
     file << "      \"node_name\": \"" << pub.node_name << "\",\n";
     file << "      \"node_namespace\": \"" << pub.node_namespace << "\",\n";
@@ -159,7 +151,7 @@ void IntrospectionData::export_to_json(const std::string & path)
   // Subscriptions
   file << "  \"subscriptions\": [\n";
   for (size_t i = 0; i < subscriptions_.size(); ++i) {
-    const auto & sub = subscriptions_[i];
+    const auto &sub = subscriptions_[i];
     file << "    {\n";
     file << "      \"node_name\": \"" << sub.node_name << "\",\n";
     file << "      \"node_namespace\": \"" << sub.node_namespace << "\",\n";
@@ -188,10 +180,9 @@ void IntrospectionData::export_to_json(const std::string & path)
   file << "}\n";
 }
 
-void IntrospectionData::export_to_yaml(const std::string & path)
-{
+void IntrospectionData::export_to_yaml(const std::string &path) {
   (void)path;
   // TODO: Implement YAML export in future phases
 }
 
-}  // namespace rmw_introspect
+} // namespace rmw_introspect
