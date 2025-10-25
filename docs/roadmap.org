@@ -140,37 +140,37 @@ Implement forwarding for wait sets, guard conditions, and graph queries. See [[f
 
 *** Guard Conditions
 
-- [ ] Update rmw_create_guard_condition() to unwrap context, forward, and create GuardConditionWrapper
-- [ ] Update rmw_destroy_guard_condition() to unwrap and forward
-- [ ] Update rmw_trigger_guard_condition() to unwrap and forward
+- [X] Update rmw_create_guard_condition() to unwrap context, forward, and create GuardConditionWrapper
+- [X] Update rmw_destroy_guard_condition() to unwrap and forward
+- [X] Update rmw_trigger_guard_condition() to unwrap and forward
 
 *** Wait Sets
 
-- [ ] Update rmw_create_wait_set() to unwrap context, forward, and create WaitSetWrapper
-- [ ] Update rmw_destroy_wait_set() to unwrap and forward
-- [ ] Update rmw_wait() to unwrap wait set and all handle arrays, forward, and update ready flags (see [[file:implementation-guide.org::*4.2: Implement rmw_wait Forwarding][implementation-guide.org § 4.2 rmw_wait]])
+- [X] Update rmw_create_wait_set() to unwrap context, forward, and create WaitSetWrapper
+- [X] Update rmw_destroy_wait_set() to unwrap and forward
+- [X] Update rmw_wait() to unwrap wait set and all handle arrays, forward, and update ready flags (see [[file:implementation-guide.org::*4.2: Implement rmw_wait Forwarding][implementation-guide.org § 4.2 rmw_wait]])
 
 *** Graph Queries
 
-- [ ] Update rmw_get_node_names() and rmw_get_node_names_with_enclaves() to forward
-- [ ] Update rmw_get_topic_names_and_types() and rmw_get_service_names_and_types() to forward
-- [ ] Update rmw_get_publisher/subscriber/service/client_names_and_types_by_node() to forward
-- [ ] Update rmw_count_publishers/subscribers/clients/services() to forward
-- [ ] Update rmw_get_gid_for_publisher/client() and rmw_compare_gids_equal() to forward
+- [X] Update rmw_get_node_names() and rmw_get_node_names_with_enclaves() to forward
+- [X] Update rmw_get_topic_names_and_types() and rmw_get_service_names_and_types() to forward
+- [X] Update rmw_get_publisher/subscriber/service/client_names_and_types_by_node() to forward
+- [X] Update rmw_count_publishers/subscribers/clients/services() to forward
+- [X] Update rmw_get_gid_for_publisher/client() and rmw_compare_gids_equal() to forward
 
 *** Event Operations
 
-- [ ] Update rmw_publisher_event_init() to forward
-- [ ] Update rmw_subscription_event_init() to forward
-- [ ] Update rmw_take_event() to forward
-- [ ] Update rmw_event_fini() to forward
+- [X] Update rmw_publisher_event_init() to forward
+- [X] Update rmw_subscription_event_init() to forward
+- [X] Update rmw_take_event() to forward
+- [X] Update rmw_event_fini() to forward
 
 *** Integration Tests
 
-- [ ] Test wait set creation/destruction and waiting on single/multiple entities
-- [ ] Test guard condition triggering and wait set integration
-- [ ] Test graph queries and compare with native RMW results
-- [ ] Create complex multi-node system test with mixed entities (see [[file:implementation-guide.org::*4.4: Complex System Test][implementation-guide.org § 4.4]])
+- [X] Test wait set creation/destruction and waiting on single/multiple entities
+- [X] Test guard condition triggering and wait set integration
+- [X] Test graph queries and compare with native RMW results
+- [X] Create complex multi-node system test with mixed entities (see [[file:implementation-guide.org::*4.4: Complex System Test][implementation-guide.org § 4.4]])
 - [ ] Stress test with high message rates
 
 ** Phase 5: Serialization & Advanced QoS
