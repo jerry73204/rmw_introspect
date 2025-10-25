@@ -68,38 +68,38 @@ Implement forwarding for publisher and subscription operations. See [[file:imple
 
 *** Node Operations
 
-- [ ] Update rmw_create_node() to create NodeWrapper and forward to real RMW (see [[file:implementation-guide.org::*2.1: Update rmw_node.cpp][implementation-guide.org § 2.1]])
-- [ ] Update rmw_destroy_node() to unwrap and forward
-- [ ] Update rmw_node_get_graph_guard_condition() to forward
+- [X] Update rmw_create_node() to create NodeWrapper and forward to real RMW (see [[file:implementation-guide.org::*2.1: Update rmw_node.cpp][implementation-guide.org § 2.1]])
+- [X] Update rmw_destroy_node() to unwrap and forward
+- [X] Update rmw_node_get_graph_guard_condition() to forward
 
 *** Publisher Operations
 
-- [ ] Update rmw_create_publisher() to extract metadata, unwrap node, forward, and create PublisherWrapper (see [[file:implementation-guide.org::*2.2: Update rmw_publisher.cpp][implementation-guide.org § 2.2]])
-- [ ] Update rmw_destroy_publisher() to unwrap and forward
-- [ ] Update rmw_publish() to unwrap and forward
-- [ ] Update rmw_publish_serialized_message() to forward
-- [ ] Update rmw_publisher_get_actual_qos() to forward
-- [ ] Update rmw_publisher_count_matched_subscriptions() to forward
-- [ ] Update rmw_publisher_assert_liveliness() to forward
-- [ ] Update rmw_publisher_wait_for_all_acked() to forward
+- [X] Update rmw_create_publisher() to extract metadata, unwrap node, forward, and create PublisherWrapper (see [[file:implementation-guide.org::*2.2: Update rmw_publisher.cpp][implementation-guide.org § 2.2]])
+- [X] Update rmw_destroy_publisher() to unwrap and forward
+- [X] Update rmw_publish() to unwrap and forward
+- [X] Update rmw_publish_serialized_message() to forward
+- [X] Update rmw_publisher_get_actual_qos() to forward
+- [X] Update rmw_publisher_count_matched_subscriptions() to forward
+- [X] Update rmw_publisher_assert_liveliness() to forward
+- [X] Update rmw_publisher_wait_for_all_acked() to forward
 
 *** Subscription Operations
 
-- [ ] Update rmw_create_subscription() to extract metadata, unwrap node, forward, and create SubscriptionWrapper (see [[file:implementation-guide.org::*2.3: Update rmw_subscription.cpp][implementation-guide.org § 2.3]])
-- [ ] Update rmw_destroy_subscription() to unwrap and forward
-- [ ] Update rmw_take() to unwrap and forward
-- [ ] Update rmw_take_with_info() to forward
-- [ ] Update rmw_take_serialized_message() to forward
-- [ ] Update rmw_take_serialized_message_with_info() to forward
-- [ ] Update rmw_subscription_get_actual_qos() to forward
-- [ ] Update rmw_subscription_count_matched_publishers() to forward
+- [X] Update rmw_create_subscription() to extract metadata, unwrap node, forward, and create SubscriptionWrapper (see [[file:implementation-guide.org::*2.3: Update rmw_subscription.cpp][implementation-guide.org § 2.3]])
+- [X] Update rmw_destroy_subscription() to unwrap and forward
+- [X] Update rmw_take() to unwrap and forward
+- [X] Update rmw_take_with_info() to forward
+- [X] Update rmw_take_serialized_message() to forward
+- [X] Update rmw_take_serialized_message_with_info() to forward
+- [X] Update rmw_subscription_get_actual_qos() to forward
+- [X] Update rmw_subscription_count_matched_publishers() to forward
 
 *** Integration Tests
 
-- [ ] Test publisher creation, destruction, publish, and QoS queries with FastRTPS
-- [ ] Test subscription creation, destruction, take operations with FastRTPS
-- [ ] Create talker/listener test with message passing through rmw_introspect (see [[file:implementation-guide.org::*2.4: Integration Test: Talker/Listener][implementation-guide.org § 2.4]])
-- [ ] Verify introspection data recorded for all interfaces
+- [X] Test publisher creation, destruction, publish, and QoS queries with FastRTPS
+- [X] Test subscription creation, destruction, take operations with FastRTPS
+- [X] Create talker/listener test with message passing through rmw_introspect (see [[file:implementation-guide.org::*2.4: Integration Test: Talker/Listener][implementation-guide.org § 2.4]])
+- [X] Verify introspection data recorded for all interfaces
 - [ ] Measure and verify latency overhead < 5% vs native RMW
 - [ ] Verify no memory leaks
 
