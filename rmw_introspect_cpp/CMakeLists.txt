@@ -143,6 +143,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_service_client_intermediate test/test_service_client_intermediate.cpp)
   target_link_libraries(test_service_client_intermediate ${PROJECT_NAME})
   ament_target_dependencies(test_service_client_intermediate rcutils rmw std_srvs rosidl_typesupport_cpp)
+
+  # Phase 4 tests: Advanced Features
+  ament_add_gtest(test_advanced_intermediate test/test_advanced_intermediate.cpp)
+  target_link_libraries(test_advanced_intermediate ${PROJECT_NAME})
+  ament_target_dependencies(test_advanced_intermediate rcutils rmw std_msgs rosidl_typesupport_cpp)
 endif()
 
 ament_package()
