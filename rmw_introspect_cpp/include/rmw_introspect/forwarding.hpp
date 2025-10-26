@@ -13,7 +13,7 @@ namespace internal {
 inline rmw_context_t *unwrap_context(const rmw_context_t *ctx) {
   if (!ctx || !ctx->impl)
     return nullptr;
-  auto *wrapper = static_cast<ContextWrapper *>(ctx->impl);
+  auto *wrapper = reinterpret_cast<ContextWrapper *>(ctx->impl);
   return wrapper->real_context;
 }
 

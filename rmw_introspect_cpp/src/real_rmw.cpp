@@ -32,7 +32,7 @@ RealRMW::RealRMW()
       subscription_count_matched_publishers(nullptr),
       // Service
       create_service(nullptr), destroy_service(nullptr), take_request(nullptr),
-      send_response(nullptr),
+      send_response(nullptr), service_server_is_available(nullptr),
       // Client
       create_client(nullptr), destroy_client(nullptr), send_request(nullptr),
       take_response(nullptr),
@@ -49,6 +49,11 @@ RealRMW::RealRMW()
       // Serialization
       serialize(nullptr), deserialize(nullptr),
       get_serialized_message_size(nullptr),
+      // Loaned messages
+      borrow_loaned_message(nullptr),
+      return_loaned_message_from_publisher(nullptr),
+      take_loaned_message(nullptr), take_loaned_message_with_info(nullptr),
+      return_loaned_message_from_subscription(nullptr),
       // Topic and service names/types
       get_topic_names_and_types(nullptr), get_service_names_and_types(nullptr),
       get_publisher_names_and_types_by_node(nullptr),
@@ -167,6 +172,8 @@ bool RealRMW::load(const char *implementation_name) {
   success &= load_symbol(destroy_service, "rmw_destroy_service");
   success &= load_symbol(take_request, "rmw_take_request");
   success &= load_symbol(send_response, "rmw_send_response");
+  success &= load_symbol(service_server_is_available,
+                         "rmw_service_server_is_available");
 
   // Client
   success &= load_symbol(create_client, "rmw_create_client");
@@ -201,6 +208,16 @@ bool RealRMW::load(const char *implementation_name) {
   success &= load_symbol(deserialize, "rmw_deserialize");
   success &= load_symbol(get_serialized_message_size,
                          "rmw_get_serialized_message_size");
+
+  // Loaned messages
+  success &= load_symbol(borrow_loaned_message, "rmw_borrow_loaned_message");
+  success &= load_symbol(return_loaned_message_from_publisher,
+                         "rmw_return_loaned_message_from_publisher");
+  success &= load_symbol(take_loaned_message, "rmw_take_loaned_message");
+  success &= load_symbol(take_loaned_message_with_info,
+                         "rmw_take_loaned_message_with_info");
+  success &= load_symbol(return_loaned_message_from_subscription,
+                         "rmw_return_loaned_message_from_subscription");
 
   // Topic and service names/types
   success &=

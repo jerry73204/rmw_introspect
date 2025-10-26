@@ -1,7 +1,9 @@
 #ifndef RMW_INTROSPECT__REAL_RMW_HPP_
 #define RMW_INTROSPECT__REAL_RMW_HPP_
 
+#include "rmw/get_node_info_and_types.h"
 #include "rmw/init.h"
+#include "rmw/names_and_types.h"
 #include "rmw/rmw.h"
 #include "rmw/types.h"
 #include "rosidl_runtime_c/message_type_support_struct.h"
@@ -47,8 +49,7 @@ public:
   rmw_ret_t (*context_fini)(rmw_context_t *);
 
   // Node
-  rmw_node_t *(*create_node)(rmw_context_t *, const char *, const char *,
-                             const rmw_node_options_t *);
+  rmw_node_t *(*create_node)(rmw_context_t *, const char *, const char *);
   rmw_ret_t (*destroy_node)(rmw_node_t *);
   const rmw_guard_condition_t *(*node_get_graph_guard_condition)(
       const rmw_node_t *);
@@ -101,6 +102,8 @@ public:
   rmw_ret_t (*take_request)(const rmw_service_t *, rmw_service_info_t *, void *,
                             bool *);
   rmw_ret_t (*send_response)(const rmw_service_t *, rmw_request_id_t *, void *);
+  rmw_ret_t (*service_server_is_available)(const rmw_node_t *,
+                                           const rmw_client_t *, bool *);
 
   // Client
   rmw_client_t *(*create_client)(const rmw_node_t *,
@@ -142,7 +145,23 @@ public:
   rmw_ret_t (*deserialize)(const rmw_serialized_message_t *,
                            const rosidl_message_type_support_t *, void *);
   rmw_ret_t (*get_serialized_message_size)(
-      const void *, const rosidl_message_type_support_t *, size_t *);
+      const rosidl_message_type_support_t *,
+      const rosidl_runtime_c__Sequence__bound *, size_t *);
+
+  // Loaned messages
+  rmw_ret_t (*borrow_loaned_message)(const rmw_publisher_t *,
+                                     const rosidl_message_type_support_t *,
+                                     void **);
+  rmw_ret_t (*return_loaned_message_from_publisher)(const rmw_publisher_t *,
+                                                    void *);
+  rmw_ret_t (*take_loaned_message)(const rmw_subscription_t *, void **, bool *,
+                                   rmw_subscription_allocation_t *);
+  rmw_ret_t (*take_loaned_message_with_info)(const rmw_subscription_t *,
+                                             void **, bool *,
+                                             rmw_message_info_t *,
+                                             rmw_subscription_allocation_t *);
+  rmw_ret_t (*return_loaned_message_from_subscription)(
+      const rmw_subscription_t *, void *);
 
   // Topic and service names/types
   rmw_ret_t (*get_topic_names_and_types)(const rmw_node_t *,

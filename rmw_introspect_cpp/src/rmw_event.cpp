@@ -4,6 +4,7 @@
 #include "rmw_introspect/forwarding.hpp"
 #include "rmw_introspect/identifier.hpp"
 #include "rmw_introspect/mode.hpp"
+#include "rmw_introspect/real_rmw.hpp"
 #include "rmw_introspect/wrappers.hpp"
 #include <cstring>
 

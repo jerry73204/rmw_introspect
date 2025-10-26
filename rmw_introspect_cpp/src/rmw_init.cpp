@@ -176,7 +176,7 @@ rmw_ret_t rmw_init(const rmw_init_options_t *options, rmw_context_t *context) {
 
     // Set up our context
     context->implementation_identifier = rmw_introspect_cpp_identifier;
-    context->impl = wrapper;
+    context->impl = reinterpret_cast<rmw_context_impl_t *>(wrapper);
     context->instance_id = options->instance_id;
     context->actual_domain_id = wrapper->real_context->actual_domain_id;
 
@@ -222,7 +222,7 @@ rmw_ret_t rmw_shutdown(rmw_context_t *context) {
   // If in intermediate mode, forward shutdown to real RMW
   if (is_intermediate_mode() && context->impl) {
     auto *wrapper =
-        static_cast<rmw_introspect::ContextWrapper *>(context->impl);
+        reinterpret_cast<rmw_introspect::ContextWrapper *>(context->impl);
     if (wrapper->real_context) {
       return g_real_rmw->shutdown(wrapper->real_context);
     }
@@ -248,7 +248,7 @@ rmw_ret_t rmw_context_fini(rmw_context_t *context) {
   // If in intermediate mode, clean up wrapper and forward to real RMW
   if (is_intermediate_mode() && context->impl) {
     auto *wrapper =
-        static_cast<rmw_introspect::ContextWrapper *>(context->impl);
+        reinterpret_cast<rmw_introspect::ContextWrapper *>(context->impl);
     if (wrapper->real_context) {
       rmw_ret_t ret = g_real_rmw->context_fini(wrapper->real_context);
       delete wrapper->real_context;

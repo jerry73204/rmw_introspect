@@ -7,9 +7,8 @@
 #include "rmw/error_handling.h"
 #include "rmw/rmw.h"
 #include "rmw_introspect/identifier.hpp"
-#include "std_msgs/msg/string.h"
 #include "test_msgs/msg/basic_types.h"
-#include "test_msgs/msg/basic_types__rosidl_typesupport_introspection_c.h"
+#include "rosidl_typesupport_cpp/message_type_support.hpp"
 
 class SerializationIntermediateTest : public ::testing::Test {
 protected:
@@ -30,8 +29,6 @@ protected:
     ASSERT_EQ(RMW_RET_OK, ret);
 
     // Create node
-    rmw_node_security_options_t security_options =
-        rmw_get_default_node_security_options();
     node = rmw_create_node(&context, "test_node", "/test_namespace");
     ASSERT_NE(nullptr, node);
     ASSERT_STREQ(rmw_introspect_cpp_identifier,
@@ -73,7 +70,7 @@ TEST_F(SerializationIntermediateTest, TestSerializeDeserialize) {
   // Get serialized message size
   size_t size = 0;
   rmw_ret_t ret =
-      rmw_get_serialized_message_size(&input_msg, type_support, &size);
+      rmw_get_serialized_message_size(type_support, nullptr, &size);
   ASSERT_EQ(RMW_RET_OK, ret);
   EXPECT_GT(size, 0u);
 
@@ -231,7 +228,7 @@ TEST_F(SerializationIntermediateTest, TestSerializationRecordingMode) {
   // Get serialized message size (should return 0 in recording-only mode)
   size_t size = 0;
   rmw_ret_t ret =
-      rmw_get_serialized_message_size(&input_msg, type_support, &size);
+      rmw_get_serialized_message_size(type_support, nullptr, &size);
   ASSERT_EQ(RMW_RET_OK, ret);
   EXPECT_EQ(0u, size);
 

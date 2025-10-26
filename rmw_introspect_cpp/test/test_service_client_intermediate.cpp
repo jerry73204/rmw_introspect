@@ -41,7 +41,7 @@ protected:
       EXPECT_EQ(RMW_RET_OK, ret);
     }
 
-    if (rmw_context_is_valid(&context_)) {
+    if (context_.implementation_identifier != nullptr) {
       rmw_ret_t ret = rmw_shutdown(&context_);
       EXPECT_EQ(RMW_RET_OK, ret);
 

@@ -2,6 +2,7 @@
 #include "rmw/rmw.h"
 #include "rmw_introspect/forwarding.hpp"
 #include "rmw_introspect/mode.hpp"
+#include "rmw_introspect/real_rmw.hpp"
 
 extern "C" {
 
@@ -43,17 +44,17 @@ rmw_ret_t rmw_deserialize(const rmw_serialized_message_t *serialized_message,
 }
 
 rmw_ret_t rmw_get_serialized_message_size(
-    const void *ros_message, const rosidl_message_type_support_t *type_support,
-    size_t *size) {
+    const rosidl_message_type_support_t *type_support,
+    const rosidl_runtime_c__Sequence__bound *message_bounds, size_t *size) {
   using namespace rmw_introspect::internal;
 
-  RCUTILS_CHECK_ARGUMENT_FOR_NULL(ros_message, RMW_RET_INVALID_ARGUMENT);
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(type_support, RMW_RET_INVALID_ARGUMENT);
+  RCUTILS_CHECK_ARGUMENT_FOR_NULL(message_bounds, RMW_RET_INVALID_ARGUMENT);
   RCUTILS_CHECK_ARGUMENT_FOR_NULL(size, RMW_RET_INVALID_ARGUMENT);
 
   // Intermediate mode: forward to real RMW
   if (is_intermediate_mode()) {
-    return g_real_rmw->get_serialized_message_size(ros_message, type_support,
+    return g_real_rmw->get_serialized_message_size(type_support, message_bounds,
                                                    size);
   }
 

@@ -6,6 +6,7 @@
 #include "rmw_introspect/forwarding.hpp"
 #include "rmw_introspect/identifier.hpp"
 #include "rmw_introspect/mode.hpp"
+#include "rmw_introspect/real_rmw.hpp"
 #include "rmw_introspect/visibility_control.h"
 #include "rmw_introspect/wrappers.hpp"
 #include <cstring>
@@ -39,15 +40,12 @@ rmw_node_t *rmw_create_node(rmw_context_t *context, const char *name,
   // Intermediate mode: forward to real RMW
   if (is_intermediate_mode()) {
     auto *ctx_wrapper =
-        static_cast<rmw_introspect::ContextWrapper *>(context->impl);
+        reinterpret_cast<rmw_introspect::ContextWrapper *>(context->impl);
     rmw_context_t *real_context = ctx_wrapper->real_context;
 
-    // Forward to real RMW - note: rmw_create_node takes rmw_node_options_t in
-    // newer ROS 2 For Humble, it should be: rmw_create_node(context, name,
-    // namespace_, domain_id) But the signature here is the older one without
-    // options Let me check what's available
+    // Forward to real RMW
     rmw_node_t *real_node =
-        g_real_rmw->create_node(real_context, name, namespace_, nullptr);
+        g_real_rmw->create_node(real_context, name, namespace_);
 
     if (!real_node) {
       return nullptr;
