@@ -19,6 +19,25 @@ fi
 echo "✓ ROS 2 Humble detected"
 echo ""
 
+# Ask about Connext DDS installation
+echo "-------------------------------------------------------------------"
+echo "Connext DDS Installation"
+echo "-------------------------------------------------------------------"
+echo ""
+echo "RTI Connext DDS is a commercial DDS implementation that requires"
+echo "a license. A free evaluation license is available from RTI."
+echo ""
+echo "Note: ros-humble-rmw-connextdds may not be available in standard"
+echo "      apt repositories and typically requires manual installation."
+echo ""
+read -p "Do you want to attempt installation of ros-humble-rmw-connextdds? (y/N) " -n 1 -r
+echo ""
+INSTALL_CONNEXT=$REPLY
+
+echo ""
+echo "-------------------------------------------------------------------"
+echo ""
+
 # Source ROS 2
 source /opt/ros/humble/setup.bash
 
@@ -32,13 +51,26 @@ declare -a RMW_PACKAGES=(
     "ros-humble-rmw-cyclonedds-cpp"
 )
 
-# Optional: rmw_connextdds requires Connext license
-# "ros-humble-rmw-connextdds"
+# Add Connext if user requested it
+if [[ $INSTALL_CONNEXT =~ ^[Yy]$ ]]; then
+    RMW_PACKAGES+=("ros-humble-rmw-connextdds")
+fi
 
 # Install each package
 for package in "${RMW_PACKAGES[@]}"; do
     echo "Installing $package..."
-    sudo apt-get install -y "$package"
+
+    # Special handling for Connext (may not be available)
+    if [[ $package == "ros-humble-rmw-connextdds" ]]; then
+        if sudo apt-get install -y "$package" 2>&1 | grep -q "Unable to locate package"; then
+            echo "  ⚠ $package not available in apt repositories"
+            echo "  Please install manually from:"
+            echo "    https://docs.ros.org/en/humble/Installation/DDS-Implementations/Working-with-RTI-Connext-DDS.html"
+            continue
+        fi
+    else
+        sudo apt-get install -y "$package"
+    fi
 done
 
 echo ""
@@ -78,13 +110,21 @@ echo "environment variable before running your ROS 2 nodes:"
 echo ""
 echo "  export RMW_IMPLEMENTATION=rmw_fastrtps_cpp"
 echo "  export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp"
-echo "  export RMW_IMPLEMENTATION=rmw_connextdds"
 echo "  export RMW_IMPLEMENTATION=rmw_zenoh_cpp"
+if [[ $INSTALL_CONNEXT =~ ^[Yy]$ ]]; then
+    echo "  export RMW_IMPLEMENTATION=rmw_connextdds  # (if installed)"
+fi
 echo ""
 echo "For rmw_introspect intermediate mode testing, use:"
 echo ""
 echo "  export RMW_IMPLEMENTATION=rmw_introspect_cpp"
 echo "  export RMW_INTROSPECT_DELEGATE_TO=rmw_fastrtps_cpp"
 echo ""
+if [[ $INSTALL_CONNEXT =~ ^[Yy]$ ]]; then
+    echo "Note: If Connext DDS was not installed via apt, you may need to"
+    echo "      install it manually and set up the license. See:"
+    echo "      https://docs.ros.org/en/humble/Installation/DDS-Implementations/Working-with-RTI-Connext-DDS.html"
+    echo ""
+fi
 echo "See docs/TESTING.md for more details."
 echo ""
